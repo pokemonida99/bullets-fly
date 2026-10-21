@@ -2,7 +2,60 @@
 'use strict';
 
 // ---------- 背景：五張街景接起來，接縫用木柱遮住 ----------
+// 分層街景：天空（視差、白天漸變黃昏）＋沿街排列的建築立面（去背）＋連續的石板路
+// 關鍵建築放在固定位置（城門、縣衙、涼粉攤、黃府），中間用騎樓補滿；建築本來就一棟一棟，不會有切開的接縫
+const GROUND_Y = 142;
+const FACADE_ANCHOR = [['f_gate', 0], ['f_yamen', 470], ['f_noodle', 850], ['f_wall', 1330], ['f_huang', null]];
+const FILLERS = ['f_shop1', 'f_shop2', 'f_shop3'];
+let facadeLayout = null;
+function layoutFacades() {
+  if (facadeLayout) return facadeLayout;
+  const img = k => IMG.bg[k];
+  if (!FACADE_ANCHOR.every(([k]) => img(k)) || !FILLERS.every(img)) return null;
+  const L = [], anchors = FACADE_ANCHOR.map(([k, x]) => [k, x == null ? stageLen - W + (W - img(k).width) / 2 : x]);
+  let x = -8, fi = 0;
+  for (const [k, ax] of anchors) {
+    while (x < ax - 20) { const f = FILLERS[fi % 3], w = img(f).width; L.push({ k: f, x, flip: (fi >> 1) & 1 }); x += w - 2; fi++; }
+    L.push({ k, x: ax, anchor: true }); x = ax + img(k).width - 2;
+  }
+  while (x < stageLen + 10) { const f = FILLERS[fi % 3]; L.push({ k: f, x, flip: (fi >> 1) & 1 }); x += img(f).width - 2; fi++; }
+  // 補位的先畫、關鍵建築後畫（蓋在上面）
+  L.sort((a, b) => (a.anchor ? 1 : 0) - (b.anchor ? 1 : 0));
+  return (facadeLayout = L);
+}
+function dusk() { return clamp((G.camX - 820) / 700, 0, 1); }
+function drawStageLayers() {
+  const L = layoutFacades(); if (!L) return false;
+  const cx = G.camX, k = dusk();
+  tileMirror(IMG.bg.sky_day, cx * 0.25, 0);
+  if (k > 0 && IMG.bg.sky_dusk) { ctx.globalAlpha = k; tileMirror(IMG.bg.sky_dusk, cx * 0.25, 0); ctx.globalAlpha = 1; }
+  for (const f of L) {
+    const im = IMG.bg[f.k], x = Math.round(f.x - cx);
+    if (x > W || x + im.width < 0) continue;
+    const y = GROUND_Y - im.height + 2;
+    if (f.flip) { ctx.save(); ctx.translate(x + im.width, y); ctx.scale(-1, 1); ctx.drawImage(im, 0, 0); ctx.restore(); }
+    else ctx.drawImage(im, x, y);
+    signs2(f.k, x, y, im);
+  }
+  if (IMG.bg.ground) tileMirror(IMG.bg.ground, cx, GROUND_Y - 4);
+  // 越往前走越接近黃昏：建築與地面染上夕陽色
+  if (k > 0) {
+    ctx.save(); ctx.globalCompositeOperation = 'multiply';
+    ctx.fillStyle = `rgba(255,${Math.round(lerp(255, 150, k))},${Math.round(lerp(255, 110, k))},1)`; ctx.fillRect(0, 0, W, H);
+    ctx.restore();
+  }
+  return true;
+}
+// 立面上的匾額字（GPT 畫的匾額是空白的；位置是相對立面圖的比例）
+const SIGN_AT = { f_gate: ['鵝城', 0.5, 0.56], f_yamen: ['縣衙', 0.5, 0.38], f_huang: ['黃府', 0.5, 0.55] };
+const SIGN_V = { f_noodle: ['涼粉', 0.86, 0.30] };
+function signs2(k, x, y, im) {
+  const a = SIGN_AT[k]; if (a) text(a[0], x + im.width * a[1], y + im.height * a[2] - 6, { c: k === 'f_huang' ? '#f0c040' : '#3a1a08', a: 'c' });
+  const v = SIGN_V[k]; if (v) vtext(v[0], x + im.width * v[1], y + im.height * v[2], { c: '#a01810' });
+}
+
 function drawStageBg() {
+  if (drawStageLayers()) return;
   const cx = Math.round(G.camX);
   STAGE.segs.forEach((k, i) => {
     const x = i * W - cx;
@@ -202,14 +255,15 @@ function drawHud() {
 }
 function drawTalk() {
   const T = G.talk; if (!T) return;
-  const [who, str] = T.lines[T.i];
+  const [who, str, nm] = T.lines[T.i];
+  if (T.panel && IMG.bg[T.panel]) { ctx.drawImage(IMG.bg[T.panel], 0, 0); }
   const y = H - 54;
   px(6, y, W - 12, 48, '#1a0a04'); px(6, y, W - 12, 1, '#d8b040'); px(6, y + 47, W - 12, 1, '#d8b040'); px(6, y, 1, 48, '#d8b040'); px(W - 7, y, 1, 48, '#d8b040');
   let tx = 14;
   if (who && IMG.por[who]) { px(10, y + 4, 42, 42, '#d8b040'); px(11, y + 5, 40, 40, '#300'); ctx.drawImage(IMG.por[who], 11, y + 5); tx = 60; }
-  if (who) text(NAMES[who] || who, tx, y + 5, { c: '#ffd040', o: '#000' });
+  if (who || nm) text(nm || NAMES[who] || who, tx, y + 5, { c: '#ffd040', o: '#000' });
   const n = Math.min(str.length, Math.floor(T.t / 2));
-  text(str.slice(0, n), tx, y + (who ? 22 : 16), { c: '#ffffff', o: '#000' });
+  text(str.slice(0, n), tx, y + (who || nm ? 22 : 16), { c: '#ffffff', o: '#000' });
   if (n >= str.length && (G.t & 16)) text('▼', W - 18, y + 34, { c: '#ffd040' });
 }
 function drawCutin() {
@@ -248,7 +302,7 @@ SCENES.title = {
     if (G.st < 20) return;
     if (I.start || I.p) { Audio2.sfx('decide'); go('select'); }
     else if (I.up) { Audio2.sfx('blip'); go('changes'); }
-    else if (G.st > 60 * 30) go('intro');
+    else if (G.st > 60 * 30) { G.attract = true; go('intro'); }
   },
   draw() {
     if (IMG.bg.title) ctx.drawImage(IMG.bg.title, 0, 0);
@@ -295,7 +349,7 @@ SCENES.select = {
   enter() { Audio2.play('select'); this.cur = CHARS.indexOf(PLAYABLE[G.chIdx]); this.done = 0; markMat(this.cur); },
   update() {
     const I = Input.pressed;
-    if (this.done) { if (++this.done > 60) { G.chIdx = PLAYABLE.indexOf(CHARS[this.cur]); G.score = 0; go(G.seenIntro ? 'stagein' : 'intro'); } return; }
+    if (this.done) { if (++this.done > 60) { G.chIdx = PLAYABLE.indexOf(CHARS[this.cur]); G.score = 0; G.attract = false; go('intro'); } return; }
     let c = this.cur;
     if (I.left) c = (c + 7) % 8; if (I.right) c = (c + 1) % 8;
     if (I.up || I.down) c = (c + 4) % 8;
@@ -368,22 +422,21 @@ function storyScene(pagesFn, onEnd, music) {
     draw() {
       const pg = this.pages[Math.min(this.pi, this.pages.length - 1)];
       px(0, 0, W, H, '#000');
-      if (IMG.bg[pg.bg]) { ctx.globalAlpha = 0.85; ctx.drawImage(IMG.bg[pg.bg], 0, 0); ctx.globalAlpha = 1; }
-      px(0, 0, W, 14, '#000'); px(0, H - 62, W, 62, 'rgba(0,0,0,.8)');
-      const shown = pg.lines.slice(0, this.li + 1);
-      const [who] = pg.lines[this.li];
+      if (IMG.bg[pg.bg]) ctx.drawImage(IMG.bg[pg.bg], 0, 0);
+      px(0, H - 62, W, 62, 'rgba(0,0,0,.78)'); px(0, H - 62, W, 1, '#d8b040');
+      const [who, str, nm] = pg.lines[this.li];
       let tx = 14;
-      if (who && IMG.por[who]) { px(8, H - 56, 42, 42, '#d8b040'); ctx.drawImage(IMG.por[who], 9, H - 55); tx = 58; text(NAMES[who], tx, H - 58, { c: '#ffd040', o: '#000' }); }
-      shown.slice(-2).forEach(([w, s], k, arr) => {
-        const isLast = k === arr.length - 1;
-        const n = isLast ? Math.min(s.length, Math.floor(this.t / 2)) : s.length;
-        text(s.slice(0, n), tx, H - 42 + k * 16 - (arr.length === 1 ? -6 : 0), { c: w ? '#ffffff' : '#e8d8b0', o: '#000' });
-      });
-      text('攻擊鍵：下一句　START：跳過', W - 4, H - 12, { c: '#808088', a: 'r' });
+      if (who && IMG.por[who]) { px(8, H - 56, 42, 42, '#d8b040'); ctx.drawImage(IMG.por[who], 9, H - 55); tx = 58; }
+      if (who || nm) text(nm || NAMES[who], tx, H - 56, { c: '#ffd040', o: '#000' });
+      const n = Math.min(str.length, Math.floor(this.t / 2));
+      text(str.slice(0, n), tx, H - (who || nm ? 38 : 44), { c: who || nm ? '#ffffff' : '#e8d8b0', o: '#000' });
+      if (n >= str.length && (G.t & 16)) text('▼', W - 14, H - 26, { c: '#ffd040' });
+      text('攻擊鍵：下一句　START：跳過', W - 4, H - 13, { c: '#808088', a: 'r' });
     },
   };
 }
-SCENES.intro = storyScene(() => INTRO, () => { G.seenIntro = true; go(G.chIdx >= 0 && G.st >= 0 && SCENES.intro.fromTitle ? 'title' : 'stagein'); }, 'title');
+SCENES.intro = storyScene(() => INTRO, () => { if (G.attract) { G.attract = false; go('title'); } else go('ridein'); }, 'title');
+SCENES.midro = storyScene(() => MIDRO, () => go('stagein'), 'title');
 SCENES.stagein = {
   enter() { setupStage(); Audio2.play('stage1'); },
   update() { if (G.st > 100 || (G.st > 20 && (Input.pressed.p || Input.pressed.start))) go('play'); },
@@ -431,7 +484,7 @@ function pauseUpdate() {
     const it = PAUSE_ITEMS[G.pauseSel];
     if (it === '繼續') G.paused = false;
     else if (it === '出招表') G.showMoves = true;
-    else if (it === '重新開始') { G.paused = false; G.score = 0; go('stagein'); }
+    else if (it === '重新開始') { G.paused = false; G.score = 0; go(G.scene === 'ride' ? 'ridein' : 'stagein'); }
     else if (it === '回到標題') { G.paused = false; go('title'); }
     else if (it === '聲音') Audio2.toggleMute();
   }
@@ -461,8 +514,8 @@ SCENES.continue = {
     if (++this.t % 60 === 0) { this.n--; Audio2.sfx('tick'); if (this.n < 0) { Store.set('hi', G.hi); go('title'); return; } }
     if ((Input.pressed.p || Input.pressed.start) && this.t > 20) {
       P.lives = 2; P.hp = P.maxhp; P.st = 'idle'; P.inv = 150; P.meter = 100; G.score = 0;
-      Audio2.sfx('decide'); Audio2.play(STAGE.waves[Math.min(G.wave, STAGE.waves.length - 1)] && STAGE.waves[Math.min(G.wave, STAGE.waves.length - 1)].music || 'stage1');
-      G.scene = 'play'; G.st = 0;
+      Audio2.sfx('decide'); if (G.resume === 'ride') Audio2.play('stage1'); else Audio2.play(STAGE.waves[Math.min(G.wave, STAGE.waves.length - 1)] && STAGE.waves[Math.min(G.wave, STAGE.waves.length - 1)].music || 'stage1');
+      G.scene = G.resume || 'play'; G.st = 0; G.resume = null;
     }
     if (Input.pressed.k) { this.t = Math.ceil(this.t / 60) * 60 - 1; }
   },

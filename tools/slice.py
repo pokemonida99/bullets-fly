@@ -5,23 +5,32 @@ import sys, os, io, base64, json
 from PIL import Image, ImageChops, ImageFilter
 
 TARGET_H = 70          # 站姿高度（遊戲像素）
-TARGET_BY = {'erge': 76, 'liuzi': 68, 'tang': 62, 'guard': 68, 'mask': 68, 'huwan': 72, 'wu': 94}
+TARGET_BY = {'erge': 76, 'liuzi': 68, 'tang': 62, 'guard': 68, 'mask': 68, 'huwan': 72, 'wu': 94, 'soldier': 68}
+RIDE_H = 92            # 騎馬整張（馬＋人）高度
+# v0.2：每人 7 張動作表（A1 站走、A2 跳／受傷、B1 B2 連打、C1 招式、C2 超必殺與勝利、R 騎馬）
 HERO = {
-    'A': ['idle0', 'idle1', 'walk0', 'walk1', 'walk2', 'walk3', 'jump', 'hurt'],
-    'B': ['b0', 'b1', 'b2', 'b3', 'jatk', 'grab', 'throw', 'down'],
-    'C': ['c0', 'c1', 'c2', 'c3', 'c4', 'c5', 'c6', 'c7'],
+    'A1': ['idle0', 'idle1', 'walk0', 'walk1', 'walk2', 'walk3', 'walk4', 'walk5'],
+    'A2': ['jump0', 'jump1', 'jump2', 'jump3', 'hurt0', 'hurt1', 'fall', 'down'],
+    'B1': ['c0a', 'c0b', 'c1a', 'c1b', 'c2a', 'c2b', 'c3a', 'c3b'],
+    'B2': ['c3c', 'jatk0', 'jatk1', 'dash0', 'dash1', 'grab', 'throw0', 'throw1'],
+    'C1': ['s1a', 's1b', 's1c', 's1d', 's2a', 's2b', 's2c', 's2d'],
+    'C2': ['sp0', 'sp1', 'sp2', 'sp3', 'sp4', 'sp5', 'win0', 'win1'],
+    'R': ['ride0', 'ride1', 'ride2', 'ride3', 'ratk0', 'ratk1', 'rjump', 'rhurt'],
 }
-ENEMY = {'A': ['idle0', 'walk0', 'walk1', 'walk2', 'atk0', 'atk1', 'hurt', 'down']}
+WALK = ['idle0', 'idle1', 'walk0', 'walk1', 'walk2', 'walk3', 'walk4', 'walk5']
+ENEMY = {'E1': WALK, 'E2': ['atk0', 'atk1', 'atk2', 'hurt0', 'hurt1', 'fall', 'down', 'getup']}
 BOSSES = {
-    'huwan': {'A': ['idle0', 'walk0', 'walk1', 'walk2', 'aim', 'fire', 'hurt', 'down'],
-              'B': ['kick', 'slap', 'hop', 'bow', 'laugh', 'beg', 'dash', 'down2']},
-    'wu': {'A': ['idle0', 'idle1', 'walk0', 'walk1', 'punch0', 'punch1', 'hurt', 'down'],
-           'B': ['charge0', 'charge1', 'jump', 'slam', 'reach', 'butt', 'roar', 'kneel']},
+    'huwan': {'E1': WALK, 'E2': ['aim', 'fire', 'kick0', 'kick1', 'slap0', 'slap1', 'hop', 'dash'],
+              'E3': ['hurt0', 'hurt1', 'fall', 'down', 'bow', 'laugh', 'beg', 'down2']},
+    'wu': {'E1': WALK, 'E2': ['punch0', 'punch1', 'punch2', 'charge0', 'charge1', 'charge2', 'reach', 'butt'],
+           'E3': ['jump', 'slam', 'roar', 'hurt0', 'hurt1', 'fall', 'down', 'kneel']},
+    'soldier': {'E1': ['idle0', 'aim0', 'aim1', 'fire', 'bolt', 'hurt0', 'fall', 'down']},
 }
 CHARS = {c: HERO for c in ['dage', 'erge', 'sange', 'liuzi', 'tang']}
 CHARS.update({c: ENEMY for c in ['guard', 'mask']}); CHARS.update(BOSSES)
-AIR = {'jump', 'jatk', 'walk0', 'walk1', 'walk2', 'walk3', 'down', 'down2', 'hop', 'c3', 'c4', 'c5', 'charge1'}   # 用重心對齊，走路才不會左右抖
-AIR_BY = {'sange': {'c3', 'c4', 'c5'}}
+AIR = {'jump0', 'jump1', 'jump2', 'jump3', 'jatk0', 'jatk1', 'walk0', 'walk1', 'walk2', 'walk3', 'walk4', 'walk5', 'fall', 'down', 'down2', 'hop',
+       'ride0', 'ride1', 'ride2', 'ride3', 'ratk0', 'ratk1', 'rjump', 'rhurt', 'charge1', 'charge2', 'jump'}
+AIR_BY = {'sange': {'s2a', 's2b', 's2c', 's2d'}, 'dage': {'s1f', 'sp1'}}
 # 個別修正：某張表 GPT 排序跑掉時，在這裡指定 [格子索引順序]
 ORDER_FIX = {}
 
@@ -109,6 +118,22 @@ def cut(im, mask, c, step):
     return fr.crop(bb) if bb else fr
 
 
+KEEP_LARGEST = {'rjump', 'rhurt', 'ride0', 'ride1', 'ride2', 'ride3', 'ratk0', 'ratk1'}   # 騎馬格：去掉 GPT 順手畫的障礙物、碎片
+
+
+def keep_largest(fr):
+    a = fr.getchannel('A'); w, h = a.size
+    comps, step = components(a.point(lambda v: 255 if v > 0 else 0), step=3)
+    if len(comps) <= 1: return fr
+    x0, y0, x1, y1 = comps[0]['box']
+    keep = Image.new('L', (w, h), 0)
+    sm = Image.new('L', (w // step + 2, h // step + 2), 0); p = sm.load()
+    for (sx, sy) in comps[0]['pts']: p[sx, sy] = 255
+    sm = sm.filter(ImageFilter.MaxFilter(3)).resize(((w // step + 2) * step, (h // step + 2) * step), Image.NEAREST).crop((0, 0, w, h))
+    out = fr.copy(); out.putalpha(ImageChops.multiply(a, sm))
+    bb = out.getbbox(); return out.crop(bb) if bb else out
+
+
 def shrink(fr, s):
     w, h = max(1, round(fr.width * s)), max(1, round(fr.height * s))
     sm = fr.resize((w, h), Image.LANCZOS)
@@ -154,11 +179,13 @@ def main():
                 print(f'!! {cid}_{sh}: 找到 {len(comps)} 格（應為 {len(names)}）')
             for n, c in zip(names, comps):
                 raw[n] = cut(im, mask, c, step)
+                if n in KEEP_LARGEST: raw[n] = keep_largest(raw[n])
         if 'idle0' not in raw: print('-- 跳過', cid); continue
         s = TARGET_BY.get(cid, TARGET_H) / raw['idle0'].height
+        sr = RIDE_H / raw['ride0'].height if 'ride0' in raw else s
         frames = {}
         for n, fr in raw.items():
-            sm = shrink(fr, s)
+            sm = shrink(fr, sr if n.startswith('r') and n in HERO['R'] else s)
             frames[n] = (sm, anchor_x(sm, n in AIR or n in AIR_BY.get(cid, ())))
         # 打包成一條橫向圖
         W = sum(f.width + 2 for f, _ in frames.values()); H = max(f.height for f, _ in frames.values())

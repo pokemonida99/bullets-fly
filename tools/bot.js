@@ -37,3 +37,33 @@ window.runBot = (ci = 0, maxF = 60 * 60 * 8) => {
   return { ch: PLAYABLE[ci].id, scene: G.scene, frames: f, sec: Math.round(f / 60), wave: G.wave, score: G.score, lives: P.lives, hp: P.hp, conts: deaths, log };
 };
 'bot ready';
+// 序章騎馬：對準有槍手的車窗開槍、看到石頭就跳、閃開陸軍子彈落點
+window.rideBotStep = () => {
+  const K = Input.key; for (const k in K) K[k] = false;
+  if (G.scene !== 'ride') { if (G.st % 20 === 0) K.p = true; return; }
+  if (R.phase === 'axe') { if (G.t % 10 === 0) K.p = true; return; }
+  const p = P;
+  const danger = R.shots.find(s => s.t > s.T - 18 && Math.abs(p.x - s.x1) < 18 && Math.abs(p.z - s.z1) < 12);
+  if (danger) K[p.z > (RIDE.zmin + RIDE.zmax) / 2 ? 'up' : 'down'] = true;
+  const ob = R.obs.find(o => o.x > p.x && o.x - p.x < 34 && Math.abs(o.z - p.z) < 10);
+  if (ob && p.h === 0) K.k = true;
+  const g = R.windows.find(w => w.g && w.g.st !== 'dead' && w.g.st !== 'hide');
+  if (g) {
+    const gx = windowWorld(g).x - 18;
+    if (Math.abs(gx - p.x) > 6) K[gx > p.x ? 'right' : 'left'] = true;
+    else if (G.t % 4 === 0) K.p = true;
+    if (p.ch.id === 'liuzi' && p.z > RIDE.zmin + 6 && !danger) K.up = true;
+  }
+  if (p.meter >= 100) K.sup = true;
+};
+window.runRide = (ci = 0, maxF = 60 * 60 * 4) => {
+  Audio2.stop(); G.chIdx = ci; G.score = 0; go('ridein'); step(115, false);
+  let f = 0;
+  while (f < maxF && ['ride', 'ridein', 'continue'].includes(G.scene)) {
+    if (G.scene === 'continue') { Input.key.p = true; tick(); Input.key.p = false; tick(); }
+    rideBotStep(); tick(); f++;
+  }
+  for (const k in Input.key) Input.key[k] = false;
+  render();
+  return { ch: PLAYABLE[ci].id, scene: G.scene, sec: Math.round(f / 60), kills: R.kills, lives: P.lives, hp: P.hp };
+};

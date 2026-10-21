@@ -3,8 +3,10 @@
 import sys, io, base64, json
 from PIL import Image
 
-NAMES = ['drum', 'jar', 'crate', 'goose', 'jelly', 'coin', 'gold', 'pouch']
-SIZE = {'drum': 46, 'jar': 20, 'crate': 18, 'goose': 13, 'jelly': 12, 'coin': 10, 'gold': 8, 'pouch': 13}   # 目標高度（遊戲像素）
+SHEETS = {'props': ['drum', 'jar', 'crate', 'goose', 'jelly', 'coin', 'gold', 'pouch'],
+          'props2': ['axe', 'boulder', 'log', 'clock', 'bush', 'stones', 'flag', 'hotpot']}
+SIZE = {'drum': 46, 'jar': 20, 'crate': 18, 'goose': 13, 'jelly': 12, 'coin': 10, 'gold': 8, 'pouch': 13,
+        'axe': 14, 'boulder': 22, 'log': 14, 'clock': 12, 'bush': 16, 'stones': 8, 'flag': 22, 'hotpot': 16}   # 目標高度（遊戲像素）
 
 
 def is_mag(r, g, b):
@@ -12,13 +14,16 @@ def is_mag(r, g, b):
 
 
 def main():
-    im = Image.open('work/art/props.png').convert('RGBA')
+  out = {}; prev = []
+  for sheet, NAMES in SHEETS.items():
+    import os
+    if not os.path.exists(f'work/art/{sheet}.png'): continue
+    im = Image.open(f'work/art/{sheet}.png').convert('RGBA')
     px = im.load()
     for y in range(im.height):
         for x in range(im.width):
             r, g, b, a = px[x, y]
             if is_mag(r, g, b): px[x, y] = (0, 0, 0, 0)
-    out = {}; prev = []
     for i, n in enumerate(NAMES):
         c, r = i % 4, i // 4
         cell = im.crop((c * im.width // 4, r * im.height // 2, (c + 1) * im.width // 4, (r + 1) * im.height // 2))
@@ -36,6 +41,7 @@ def main():
         sm = sm.crop(sm.getbbox())
         b = io.BytesIO(); sm.save(b, 'PNG'); out[n] = 'data:image/png;base64,' + base64.b64encode(b.getvalue()).decode()
         prev.append(sm); print(n, sm.size)
+  if True:
     open('js/prop_data.js', 'w').write('// 由 tools/props.py 產生，勿手改\nwindow.PROP_ART = ' + json.dumps(out) + ';\n')
     if len(sys.argv) > 1:
         W = sum(p.width + 4 for p in prev); H = max(p.height for p in prev)

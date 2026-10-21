@@ -162,17 +162,17 @@ function updatePlayer(p) {
 }
 function playerFrame(p) {
   switch (p.st) {
-    case 'idle': return p.landT > 0 ? 'idle1' : ((G.t >> 5) & 1 ? 'idle1' : 'idle0');
-    case 'walk': return 'walk' + ((p.walkT >> 3) & 3);
-    case 'run': return 'walk' + ((p.walkT >> 2) & 3);
-    case 'jump': return p.mv ? 'jatk' : 'jump';
+    case 'idle': return p.landT > 0 ? 'jump0' : ((G.t / 24 | 0) & 1 ? 'idle1' : 'idle0');
+    case 'walk': return 'walk' + ((p.walkT / 6 | 0) % 6);
+    case 'run': return 'walk' + ((p.walkT / 4 | 0) % 6);
+    case 'jump': return p.mv ? moveFrame(p) : p.vh > 2 ? 'jump1' : p.vh > -2 ? 'jump2' : 'jump3';
     case 'move': case 'super': return p.mv ? moveFrame(p) : 'idle0';
     case 'grab': return p.sub ? moveFrame(p) : 'grab';
-    case 'hurt': return 'hurt';
-    case 'fall': return p.vh > 0 ? 'hurt' : 'down';
+    case 'hurt': return p.t2 > 8 ? 'hurt0' : 'hurt1';
+    case 'fall': return p.h > 2 ? 'fall' : 'down';
     case 'down': return 'down';
-    case 'getup': return 'jump';
-    case 'win': return 'c7';
+    case 'getup': return 'jump0';
+    case 'win': return (G.t / 30 | 0) & 1 ? 'win1' : 'win0';
   }
   return 'idle0';
 }
@@ -222,7 +222,7 @@ function playerDie(p) {
     // 復活時周圍的敵人被震開
     for (const e of foes) if (Math.abs(e.x - p.x) < 90 && canHit(e)) knock(e, Math.sign(e.x - p.x) || 1, 0, true);
     sfx('superStart'); G.flash = 8;
-  } else { p.st = 'dead'; go('continue'); }
+  } else { p.st = 'dead'; G.resume = 'play'; go('continue'); }
 }
 
 // ---------- 招式事件（飛道具、超必殺） ----------
@@ -290,11 +290,11 @@ function doSuper(p) {
 function updateSuper(p) {
   if (p.superKind !== 'sange') return;
   const list = p.dashList, i = Math.floor(p.mt / 9), k = p.mt % 9;
-  if (i >= list.length) { p.st = 'idle'; p.x = p.home.x; p.z = p.home.z; p.superKind = null; p.inv = 20; p.mv = null; return; }
+  if (i >= list.length) { if (p.mt < list.length * 9 + 24) { p.mv = { seq: [[p.mt < list.length * 9 + 10 ? 'sp4' : 'sp5', 99]] }; p.x = p.home.x; p.z = p.home.z; p.mt++; return; } p.st = 'idle'; p.superKind = null; p.inv = 20; p.mv = null; return; }
   const e = list[i];
   if (k === 0) { p.x = e.x - 34 * (Math.random() < 0.5 ? 1 : -1); p.z = e.z; p.face = Math.sign(e.x - p.x) || 1; sfx('whiff'); for (let j = 0; j < 4; j++) part({ x: p.x - G.camX + rnd(-8, 8), y: p.z - rnd(10, 60), life: 10, col: '#c0c8ff' }); }
   if (k === 4 && canHit(e, true)) { sfx('gun'); hitFoe(e, 15, i === list.length - 1 || e.hp <= 15, p.face, p, { all: true, launch: 3 }); spark(e.x - G.camX, e.z - 40, true, '#ffd040'); }
-  p.mv = { seq: [[k < 4 ? 'c6' : 'c1', 99]] };
+  p.mv = { seq: [[k < 3 ? 'sp1' : k < 6 ? 'sp2' : 'sp3', 99]] };
   p.mt++;
 }
 
@@ -452,21 +452,28 @@ function aiGrunt(e, p) {
   else if (canAtk && T.lunge && Math.abs(e.z - p.z) < 6 && Math.abs(dxp) > 60 && Math.abs(dxp) < 110 && Math.random() < 0.02) { e.st = 'wind'; e.t2 = 18; e.lunge = true; sfx('alert'); }
 }
 function foeFrame(e) {
-  const k = e.kind;
-  const walk = () => k === 'wu' ? 'walk' + ((e.walkT >> 4) & 1) : ['walk0', 'walk1', 'walk2', 'walk1'][(e.walkT >> 3) & 3];
+  const k = e.kind, wt = e.walkT || 0;
   switch (e.st) {
-    case 'idle': return k === 'wu' ? ((G.t >> 5) & 1 ? 'idle1' : 'idle0') : 'idle0';
-    case 'walk': case 'enter': case 'flee': return walk();
+    case 'idle': return (G.t / 28 | 0) & 1 ? 'idle1' : 'idle0';
+    case 'walk': case 'enter': case 'flee': return 'walk' + ((wt / (k === 'wu' ? 8 : 6) | 0) % 6);
     case 'wind': return 'atk0';
     case 'atk': return 'atk1';
-    case 'rec': return 'atk1';
-    case 'hurt': case 'grabbed': return 'hurt';
-    case 'daze': return (e.t >> 4) & 1 ? 'hurt' : 'idle0';
-    case 'fall': case 'thrown': return e.vh > 0 || e.h > 20 ? 'hurt' : (k === 'huwan' && e.hp <= 0 ? 'down2' : 'down');
+    case 'rec': return 'atk2';
+    case 'hurt': return e.t2 > 8 ? 'hurt0' : 'hurt1';
+    case 'grabbed': return 'hurt0';
+    case 'daze': return (e.t >> 4) & 1 ? 'hurt1' : 'idle0';
+    case 'fall': case 'thrown': return e.h > 2 ? 'fall' : (k === 'huwan' && e.hp <= 0 ? 'down2' : 'down');
     case 'down': case 'dead': return k === 'huwan' && e.hp <= 0 ? 'down2' : 'down';
-    case 'getup': return k === 'wu' ? 'idle1' : 'hurt';
-    case 'boss': return e.frame;
+    case 'getup': return k === 'guard' || k === 'mask' ? 'getup' : 'hurt1';
     case 'kneel': return 'kneel';
+    case 'boss': {
+      const f = e.frame;
+      if (f === 'kick') return e.t2 > 12 ? 'kick0' : 'kick1';
+      if (f === 'slap') return e.t2 > 11 ? 'slap0' : 'slap1';
+      if (f === 'punch1') return e.t2 > 6 ? 'punch1' : 'punch2';
+      if (f === 'charge1') return (e.t / 5 | 0) & 1 ? 'charge2' : 'charge1';
+      return f;
+    }
   }
   return 'idle0';
 }
@@ -568,7 +575,7 @@ function aiWu(e, p) {
       if (e.t2 === 50) { sfx('roar'); G.shake = 10; G.flash = 3; if (Math.abs(p.x - e.x) < 80) hurtPlayer(p, 4, true, Math.sign(p.x - e.x) || 1); }
     }
     if (e.t2 <= 0) {
-      if (m === 'punch' || m === 'slam' || m === 'butt') { e.mode = 'rec'; e.frame = 'idle1'; e.t2 = Math.round(26 * rage); return; }
+      if (m === 'punch' || m === 'slam' || m === 'butt') { e.mode = 'rec'; e.frame = m === 'punch' ? 'punch2' : 'idle1'; e.t2 = Math.round(26 * rage); return; }
       e.st = 'idle'; e.h = 0; A.cd = Math.round(rndi(30, 60) * rage);
     }
     return;
@@ -656,8 +663,9 @@ function nextWave() {
   G.lockR = w ? w.lock : stageLen - W;
 }
 function startTalk(key) {
-  const lines = TALK[key].map(([who, s]) => [who === 'P' ? P.cid : who, s]);
-  G.talk = { lines, i: 0, t: 0, key };
+  const src = TALK[key], pn = src.find(l => !Array.isArray(l));
+  const lines = src.filter(l => Array.isArray(l)).map(([who, s, nm]) => [who === 'P' ? P.cid : who, s, nm]);
+  G.talk = { lines, i: 0, t: 0, key, panel: pn && pn.panel };
 }
 function updateWaves() {
   const w = STAGE.waves[G.wave];
