@@ -7,7 +7,7 @@ const G = {
   score: 0, hi: Store.get('hi', 20000), talk: null, cutin: null, foe: null, foeT: 0, goT: 0, clear: false, cont: 0, freeze: 0,
 };
 let P = null, foes = [], projs = [], props = [], items = [], parts = [], pops = [], fx = [];
-let STAGE = STAGE1, stageLen = STAGE1.segs.length * W;
+let STAGE = STAGE1, stageLen = 5 * W;
 
 function go(scene) { G.scene = scene; G.st = 0; SCENES[scene].enter && SCENES[scene].enter(); }
 const sfx = n => Audio2.sfx(n);
@@ -326,7 +326,7 @@ function doHits(a, mv, t, isP) {
     }
   });
 }
-const canHit = (e, any) => e.st !== 'dead' && e.st !== 'enter' && e.st !== 'flee' && (any ? e.st !== 'down' || true : !(e.st === 'fall' || e.st === 'down' || e.st === 'getup' || e.st === 'thrown')) && e.inv <= 0;
+const canHit = (e, any) => e.st !== 'dead' && e.st !== 'enter' && e.st !== 'flee' && e.st !== 'kneel' && (any ? e.st !== 'down' || true : !(e.st === 'fall' || e.st === 'down' || e.st === 'getup' || e.st === 'thrown')) && e.inv <= 0;
 const onScreen = e => e.x > G.camX - 10 && e.x < G.camX + W + 10;
 
 function hitFoe(e, dmg, kd, dir, a, hb = {}) {
@@ -416,6 +416,7 @@ function updateFoe(e) {
     case 'kneel': return;
   }
   if (e.type.boss) return e.kind === 'wu' ? aiWu(e, p) : aiHuwan(e, p);
+  if (e.type.rifle) return aiRifle(e, p);
   aiGrunt(e, p);
 }
 function aiGrunt(e, p) {
@@ -451,21 +452,58 @@ function aiGrunt(e, p) {
   if (canAtk && Math.abs(e.z - p.z) < 6 && Math.abs(dxp) < T.reach + 4 && Math.abs(dxp) > 8) { e.st = 'wind'; e.t2 = T.wind; }
   else if (canAtk && T.lunge && Math.abs(e.z - p.z) < 6 && Math.abs(dxp) > 60 && Math.abs(dxp) < 110 && Math.random() < 0.02) { e.st = 'wind'; e.t2 = 18; e.lunge = true; sfx('alert'); }
 }
+// 拿步槍的假麻匪：保持距離、對齊後瞄準開槍；被貼近就用槍托
+function aiRifle(e, p) {
+  const T = e.type, dxp = p.x - e.x, adx = Math.abs(dxp);
+  if (e.st === 'raim') { e.face = Math.sign(dxp) || e.face; if (--e.t2 <= 0) { e.st = 'rfire'; e.t2 = 16; sfx('gun'); proj({ kind: 'shot', from: 'e', x: e.x + e.face * 30, z: e.z, h: 46, vx: e.face * 5, dmg: T.dmg, life: 110 }); } return; }
+  if (e.st === 'rfire') { if (--e.t2 <= 0) { e.st = 'idle'; e.ai.cd = rndi(70, 120); } return; }
+  if (e.st === 'wind') { if (--e.t2 <= 0) { e.st = 'atk'; e.t2 = T.act; e.hitDone = false; sfx('whiff'); } return; }
+  if (e.st === 'atk') { if (!e.hitDone && overlapBody(boxWorld(e, T.box), p, 9, e.z)) { e.hitDone = true; hurtPlayer(p, T.dmg, false, e.face); } if (--e.t2 <= 0) { e.st = 'rec'; e.t2 = T.rec; } return; }
+  if (e.st === 'rec') { if (--e.t2 <= 0) { e.st = 'idle'; e.ai.cd = rndi(30, 60); } return; }
+  if (e.ai.cd > 0) e.ai.cd--;
+  e.face = Math.sign(dxp) || e.face;
+  if (adx < 36 && Math.abs(e.z - p.z) < 6 && e.ai.cd <= 0) { e.st = 'wind'; e.t2 = T.wind; return; }
+  const want = 120, tx = p.x - Math.sign(dxp || 1) * want; let moved = false;
+  if (Math.abs(tx - e.x) > 6) { e.x += Math.sign(tx - e.x) * T.spd; moved = true; }
+  if (Math.abs(p.z - e.z) > 2) { e.z += Math.sign(p.z - e.z) * 0.6; moved = true; }
+  e.x = clamp(e.x, G.camX + 14, G.camX + W - 14);
+  e.st = moved ? 'walk' : 'idle'; if (moved) e.walkT = (e.walkT || 0) + 1;
+  if (e.ai.cd <= 0 && Math.abs(p.z - e.z) < 8 && adx > 50 && p.st !== 'down') { e.st = 'raim'; e.t2 = 30; sfx('alert'); }
+}
+// 屋頂掃射（第二關臥室那一段）：地上先出現紅圈，一會兒子彈落下
+function updateVolley() {
+  if (G.talk) return;
+  if (--G.volleyT <= 0) {
+    G.volleyT = rndi(110, 170);
+    for (let i = 0; i < 3; i++) G.volley.push({ x: clamp(P.x + rnd(-60, 60), G.camX + 16, G.camX + W - 16), z: clamp(P.z + rnd(-14, 14), ZMIN, ZMAX), t: -i * 8 });
+    sfx('alert');
+  }
+}
+function tickVolley() {
+  for (const v of G.volley || []) {
+    v.t++;
+    if (v.t === 44) { sfx('gunFar'); dust(v.x, v.z, 4); if (Math.abs(P.x - v.x) < 14 && Math.abs(P.z - v.z) < 8 && P.h < 20) hurtPlayer(P, 8, false, 1); for (const e of foes) if (canHit(e) && !e.type.boss && Math.abs(e.x - v.x) < 14 && Math.abs(e.z - v.z) < 8) hitFoe(e, 10, false, 1, P, {}); }
+  }
+  if (G.volley) G.volley = G.volley.filter(v => v.t < 54);
+}
+
 function foeFrame(e) {
   const k = e.kind, wt = e.walkT || 0;
   switch (e.st) {
     case 'idle': return (G.t / 28 | 0) & 1 ? 'idle1' : 'idle0';
     case 'walk': case 'enter': case 'flee': return 'walk' + ((wt / (k === 'wu' ? 8 : 6) | 0) % 6);
-    case 'wind': return 'atk0';
-    case 'atk': return 'atk1';
-    case 'rec': return 'atk2';
-    case 'hurt': return e.t2 > 8 ? 'hurt0' : 'hurt1';
+    case 'wind': return k === 'maskr' ? 'raim' : 'atk0';
+    case 'atk': return k === 'maskr' ? 'butt' : 'atk1';
+    case 'rec': return k === 'maskr' ? 'butt' : 'atk2';
+    case 'hurt': return e.t2 > 8 || k === 'maskr' ? 'hurt0' : 'hurt1';
     case 'grabbed': return 'hurt0';
-    case 'daze': return (e.t >> 4) & 1 ? 'hurt1' : 'idle0';
+    case 'daze': return (e.t >> 4) & 1 ? (k === 'maskr' ? 'hurt0' : 'hurt1') : 'idle0';
     case 'fall': case 'thrown': return e.h > 2 ? 'fall' : (k === 'huwan' && e.hp <= 0 ? 'down2' : 'down');
     case 'down': case 'dead': return k === 'huwan' && e.hp <= 0 ? 'down2' : 'down';
-    case 'getup': return k === 'guard' || k === 'mask' ? 'getup' : 'hurt1';
-    case 'kneel': return 'kneel';
+    case 'getup': return k === 'guard' || k === 'mask' || k === 'maskr' ? 'getup' : 'hurt1';
+    case 'kneel': return k === 'huwan' ? 'beg' : 'kneel';
+    case 'raim': return e.t2 > 18 ? 'raim' : 'aim';
+    case 'rfire': return e.t2 > 10 ? 'fire' : 'aim';
     case 'boss': {
       const f = e.frame;
       if (f === 'kick') return e.t2 > 12 ? 'kick0' : 'kick1';
@@ -479,7 +517,8 @@ function foeFrame(e) {
 }
 function foeDie(e) {
   if (e.type.boss) {
-    if (e.kind === 'huwan') { e.st = 'flee'; e.hp = 0; G.score += e.type.score; startTalk('huwanDown'); return; }
+    if (e.key === 'huwan') { e.st = 'flee'; e.hp = 0; G.score += e.type.score; startTalk('huwanDown'); return; }
+    if (e.key === 'huwan2') { e.st = 'kneel'; e.hp = 0; G.score += e.type.score; return; }
     e.st = 'kneel'; e.hp = 0; G.score += e.type.score;
     for (const d of [-1, 1]) items.push({ k: 'goose', x: e.x + d * 22, z: clamp(e.z + d * 6, ZMIN, ZMAX), h: 30, vh: 3, t: 0 });   // 劇本：武舉人一手拎著兩隻燒鵝
     return;
@@ -490,12 +529,13 @@ function foeDie(e) {
 
 // ---------- 頭目：胡萬 ----------
 function aiHuwan(e, p) {
-  const A = e.ai, dxp = p.x - e.x, adx = Math.abs(dxp);
+  const A = e.ai, dxp = p.x - e.x, adx = Math.abs(dxp), fast = e.type.fast;
+  if (fast && A.cd > 0 && e.st !== 'boss') A.cd -= 0.5;
   if (e.st !== 'boss') e.face = Math.sign(dxp) || e.face;
   if (e.st === 'boss') {
     e.t2--;
     const m = e.mode;
-    if (m === 'aim') { e.face = Math.sign(dxp) || e.face; if (Math.abs(p.z - e.z) > 2) e.z += Math.sign(p.z - e.z) * 0.6; if (e.t2 <= 0) { e.mode = 'fire'; e.frame = 'fire'; e.t2 = 22; sfx('gun'); proj({ kind: 'shot', from: 'e', x: e.x + e.face * 26, z: e.z, h: 48, vx: e.face * 4.6, dmg: 10, life: 120 }); } }
+    if (m === 'aim') { e.face = Math.sign(dxp) || e.face; if (Math.abs(p.z - e.z) > 2) e.z += Math.sign(p.z - e.z) * 0.6; if (e.t2 <= 0) { e.mode = 'fire'; e.frame = 'fire'; e.t2 = 22; sfx('gun'); proj({ kind: 'shot', from: 'e', x: e.x + e.face * 26, z: e.z, h: 48, vx: e.face * 4.6, dmg: 10, life: 120 }); if (e.type.fast) { e.burst = (e.burst || 0) + 1; if (e.burst < 3) { e.mode = 'aim'; e.frame = 'aim'; e.t2 = 10; } else e.burst = 0; } } }
     else if (m === 'kick' || m === 'slap') {
       if (e.t2 === 10) { const bx = boxWorld(e, m === 'kick' ? [2, 44, 34, 26] : [4, 60, 30, 18]); if (overlapBody(bx, p, 9, e.z)) hurtPlayer(p, m === 'kick' ? 10 : 7, m === 'kick', e.face); sfx('whiff'); }
     } else if (m === 'hop') { e.x -= e.face * 3; e.h = Math.max(0, Math.sin((1 - e.t2 / 24) * Math.PI) * 24); }
@@ -526,7 +566,7 @@ function aiHuwan(e, p) {
   e.x = clamp(e.x, G.camX + 16, G.camX + W - 16);
   e.st = moved ? 'walk' : 'idle'; if (moved) e.walkT = (e.walkT || 0) + 1;
   if (A.cd <= 0 && Math.abs(p.z - e.z) < 10 && adx > 60) {
-    e.st = 'boss'; e.mode = 'aim'; e.frame = 'aim'; e.t2 = 34; sfx('alert');
+    e.st = 'boss'; e.mode = 'aim'; e.frame = 'aim'; e.t2 = fast ? 24 : 34; sfx('alert');
     if (Math.random() < 0.3) { e.mode = 'bow'; e.frame = 'bow'; e.t2 = 30; pop(e.x, e.z - 80, '請——', '#ffffff'); }
   }
 }
@@ -649,7 +689,7 @@ function updateItems() {
 
 // ---------- 關卡流程 ----------
 function setupStage() {
-  STAGE = STAGE1; stageLen = STAGE.segs.length * W;
+  STAGE = STAGES[G.stageIdx || 0]; stageLen = STAGE.segs * W; facadeLayout = null; G.volley = []; G.volleyT = 0;
   foes = []; projs = []; items = []; parts = []; pops = []; fx = [];
   props = STAGE.props.map((p, i) => ({ id: i, k: p.k, x: p.x, z: p.z, hp: p.k === 'jar' ? 1 : 2, shake: 0 }));
   G.camX = 0; G.lockL = 0; G.lockR = 0; G.wave = -1; G.clear = false; G.bossTalked = false; G.drum = null; G.drumAt = 0; G.foe = null; G.foeT = 0; G.talk = null; G.cutin = null;
@@ -684,6 +724,7 @@ function updateWaves() {
   }
   G.grpT++;
   const alive = foes.filter(e => e.st !== 'dead' && !e.gone && e.st !== 'kneel' && e.st !== 'flee');
+  if (w.volley && G.grp >= 0) updateVolley();
   const ng = w.groups[G.grp + 1];
   if (ng) {
     const boss = foes.find(e => e.type.boss);
@@ -693,8 +734,9 @@ function updateWaves() {
   }
   if (alive.length === 0 && !G.talk) {
     if (w.boss) {
-      const b = foes.find(e => e.kind === w.boss);
-      if (b && b.st === 'kneel' && !G.bossTalked) { G.bossTalked = true; startTalk('wuDown'); return; }
+      const b = foes.find(e => e.key === w.boss);
+      if (b && b.st === 'kneel' && !G.bossTalked) { G.bossTalked = true; startTalk(w.bossTalk || 'wuDown'); return; }
+      if (b && b.key === 'huwan2' && G.bossTalked && b.st === 'kneel') { b.st = 'dead'; b.t2 = 30; sfx('gun'); return; }   // 劇本第 67 場：胡萬被一槍打死
     }
     nextWave(); G.goT = 150;
     if (G.wave < STAGE.waves.length) sfx('go');
@@ -736,6 +778,7 @@ function updatePlay() {
   foes = foes.filter(e => !(e.st === 'dead' && --e.t2 <= 0) && !e.gone);
   for (const pr of projs) updateProj(pr);
   projs = projs.filter(p => !p.dead);
+  tickVolley();
   updateItems();
   for (const pr of props) if (pr.shake > 0) pr.shake--;
   for (const f of fx) f.t++;
@@ -757,6 +800,6 @@ function updatePlay() {
   if (G.clear) {
     G.clearT++;
     if (G.clearT === 1) { Audio2.play('clear'); P.st = 'win'; P.mv = null; }
-    if (G.clearT > 220) { Store.set('hi', G.hi); go('outro'); }
+    if (G.clearT > 220) { Store.set('hi', G.hi); go(STAGE.next || 'story2'); }
   }
 }

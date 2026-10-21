@@ -5,13 +5,11 @@
 // 分層街景：天空（視差、白天漸變黃昏）＋沿街排列的建築立面（去背）＋連續的石板路
 // 關鍵建築放在固定位置（城門、縣衙、涼粉攤、黃府），中間用騎樓補滿；建築本來就一棟一棟，不會有切開的接縫
 const GROUND_Y = 142;
-const FACADE_ANCHOR = [['f_gate', 0], ['f_yamen', 470], ['f_noodle', 850], ['f_wall', 1330], ['f_huang', null]];
-const FILLERS = ['f_shop1', 'f_shop2', 'f_shop3'];
 let facadeLayout = null;
 function layoutFacades() {
   if (facadeLayout) return facadeLayout;
-  const img = k => IMG.bg[k];
-  if (!FACADE_ANCHOR.every(([k]) => img(k)) || !FILLERS.every(img)) return null;
+  const img = k => IMG.bg[k], FACADE_ANCHOR = STAGE.anchors || [], FILLERS = STAGE.fillers || [];
+  if (!FACADE_ANCHOR.length || !FACADE_ANCHOR.every(([k]) => img(k)) || !FILLERS.every(img)) return null;
   const L = [], anchors = FACADE_ANCHOR.map(([k, x]) => [k, x == null ? stageLen - W + (W - img(k).width) / 2 : x]);
   let x = -8, fi = 0;
   for (const [k, ax] of anchors) {
@@ -23,12 +21,14 @@ function layoutFacades() {
   L.sort((a, b) => (a.anchor ? 1 : 0) - (b.anchor ? 1 : 0));
   return (facadeLayout = L);
 }
-function dusk() { return clamp((G.camX - 820) / 700, 0, 1); }
+function dusk() { return STAGE.sky && STAGE.sky.length > 1 ? clamp((G.camX - 820) / 700, 0, 1) : 0; }
 function drawStageLayers() {
   const L = layoutFacades(); if (!L) return false;
   const cx = G.camX, k = dusk();
-  tileMirror(IMG.bg.sky_day, cx * 0.25, 0);
-  if (k > 0 && IMG.bg.sky_dusk) { ctx.globalAlpha = k; tileMirror(IMG.bg.sky_dusk, cx * 0.25, 0); ctx.globalAlpha = 1; }
+  const sky = STAGE.sky || ['sky_day'];
+  const SKY_Y = -86;   // 天空圖 960 寬：月亮／太陽落在建築上方，整關只會出現一次
+  tileMirror(IMG.bg[sky[0]], cx * 0.25, SKY_Y);
+  if (k > 0 && IMG.bg[sky[1]]) { ctx.globalAlpha = k; tileMirror(IMG.bg[sky[1]], cx * 0.25, SKY_Y); ctx.globalAlpha = 1; }
   for (const f of L) {
     const im = IMG.bg[f.k], x = Math.round(f.x - cx);
     if (x > W || x + im.width < 0) continue;
@@ -37,7 +37,10 @@ function drawStageLayers() {
     else ctx.drawImage(im, x, y);
     signs2(f.k, x, y, im);
   }
-  if (IMG.bg.ground) tileMirror(IMG.bg.ground, cx, GROUND_Y - 4);
+  if (IMG.bg.ground) {
+    tileMirror(IMG.bg.ground, cx, GROUND_Y - 4);
+    if (STAGE.night) { ctx.save(); ctx.globalCompositeOperation = 'multiply'; ctx.fillStyle = 'rgb(90,105,170)'; ctx.fillRect(0, GROUND_Y - 4, W, H); ctx.restore(); }
+  }
   // 越往前走越接近黃昏：建築與地面染上夕陽色
   if (k > 0) {
     ctx.save(); ctx.globalCompositeOperation = 'multiply';
@@ -47,7 +50,7 @@ function drawStageLayers() {
   return true;
 }
 // 立面上的匾額字（GPT 畫的匾額是空白的；位置是相對立面圖的比例）
-const SIGN_AT = { f_gate: ['鵝城', 0.5, 0.56], f_yamen: ['縣衙', 0.5, 0.38], f_huang: ['黃府', 0.5, 0.55] };
+const SIGN_AT = { f_gate: ['鵝城', 0.5, 0.56], f_yamen: ['縣衙', 0.5, 0.38], f_huang: ['黃府', 0.5, 0.55], g_hall: ['明鏡高懸', 0.5, 0.3], g_gate: ['縣衙', 0.5, 0.33] };
 const SIGN_V = { f_noodle: ['涼粉', 0.86, 0.30] };
 function signs2(k, x, y, im) {
   const a = SIGN_AT[k]; if (a) text(a[0], x + im.width * a[1], y + im.height * a[2] - 6, { c: k === 'f_huang' ? '#f0c040' : '#3a1a08', a: 'c' });
@@ -56,8 +59,9 @@ function signs2(k, x, y, im) {
 
 function drawStageBg() {
   if (drawStageLayers()) return;
+  if (!STAGE.bgs) { px(0, 0, W, H, STAGE.night ? '#101828' : '#6a8ab0'); px(0, GROUND_Y, W, H, '#4a4a50'); return; }
   const cx = Math.round(G.camX);
-  STAGE.segs.forEach((k, i) => {
+  STAGE.bgs.forEach((k, i) => {
     const x = i * W - cx;
     if (x > W || x < -W) return;
     const img = IMG.bg[k];
@@ -65,7 +69,7 @@ function drawStageBg() {
     signs(k, x);
   });
   // 接縫：木柱＋紅燈籠
-  for (let i = 1; i < STAGE.segs.length; i++) {
+  for (let i = 1; i < STAGE.bgs.length; i++) {
     const x = i * W - cx + 6;
     if (x < -20 || x > W + 20) continue;
     px(x - 3, 0, 7, 146, '#3a2412'); px(x - 3, 0, 2, 146, '#5a3a1e'); px(x + 3, 0, 1, 146, '#1a0e06');
@@ -174,6 +178,16 @@ function drawDrum() {
   ctx.fillStyle = '#d8b880'; ctx.beginPath(); ctx.arc(0, 0, 17, 0, Math.PI * 2); ctx.fill();
   for (let k = 0; k < 10; k++) { const a = d.rot + k * Math.PI / 5; px(Math.cos(a) * 19.5 - 1, Math.sin(a) * 19.5 - 1, 2, 2, '#f0c040'); }
   ctx.restore();
+}
+
+function drawVolley() {
+  for (const v of G.volley || []) {
+    if (v.t < 0) continue;
+    const sx = v.x - G.camX;
+    if (v.t < 44) { if ((G.t & 2) || v.t > 30) { ctx.strokeStyle = '#ff3030'; ctx.lineWidth = 1; ctx.beginPath(); ctx.ellipse(sx, v.z, 10, 3.5, 0, 0, Math.PI * 2); ctx.stroke(); }
+      if (v.t > 34) { const k = (v.t - 34) / 10; px(sx - 1, lerp(30, v.z - 4, k), 2, 8, '#fff3a0'); } }
+    else { ctx.fillStyle = `rgba(255,220,140,${1 - (v.t - 44) / 10})`; ctx.beginPath(); ctx.ellipse(sx, v.z, 12, 4, 0, 0, Math.PI * 2); ctx.fill(); }
+  }
 }
 
 function drawFx() {
@@ -403,9 +417,14 @@ SCENES.select = {
   },
 };
 // 過場（開場、結局）：一頁一頁的背景＋台詞
+const liuziAlive = () => PLAYABLE[G.chIdx] && PLAYABLE[G.chIdx].id === 'liuzi';
+function storyPages(pages) {   // 依六子生死過濾：cond 'dead'／'alive'
+  const ok = c => !c || (c === 'alive') === liuziAlive();
+  return pages.filter(pg => ok(pg.cond)).map(pg => Object.assign({}, pg, { lines: pg.lines.filter(l => ok(l[3])) })).filter(pg => pg.lines.length);
+}
 function storyScene(pagesFn, onEnd, music) {
   return {
-    enter() { this.pages = pagesFn(); this.pi = 0; this.li = 0; this.t = 0; if (music) Audio2.play(music); },
+    enter() { this.pages = storyPages(pagesFn()); this.pi = 0; this.li = 0; this.t = 0; if (music) Audio2.play(music); },
     update() {
       const pg = this.pages[this.pi]; if (!pg) return;
       this.t++;
@@ -436,14 +455,14 @@ function storyScene(pagesFn, onEnd, music) {
   };
 }
 SCENES.intro = storyScene(() => INTRO, () => { if (G.attract) { G.attract = false; go('title'); } else go('ridein'); }, 'title');
-SCENES.midro = storyScene(() => MIDRO, () => go('stagein'), 'title');
+SCENES.midro = storyScene(() => MIDRO, () => { G.stageIdx = 0; go('stagein'); }, 'title');
 SCENES.stagein = {
   enter() { setupStage(); Audio2.play('stage1'); },
   update() { if (G.st > 100 || (G.st > 20 && (Input.pressed.p || Input.pressed.start))) go('play'); },
   draw() {
     drawStageBg(); ctx.fillStyle = `rgba(0,0,0,${Math.max(0, 1 - G.st / 40) * 0.8 + 0.2})`; ctx.fillRect(0, 0, W, H);
     text(STAGE.name, W / 2, 80, { s: 2, c: '#fff', a: 'c', o: '#300', grad: ['#ffffff', '#ffb020'] });
-    text('—— 北洋年間　南部中國 ——', W / 2, 112, { c: '#e8d8b0', a: 'c', o: '#000' });
+    text(STAGE.sub || '', W / 2, 112, { c: '#e8d8b0', a: 'c', o: '#000' });
   },
 };
 SCENES.play = {
@@ -456,6 +475,7 @@ SCENES.play = {
     ctx.save();
     if (G.shake) ctx.translate(Math.round(rnd(-G.shake, G.shake) / 2), Math.round(rnd(-G.shake, G.shake) / 2));
     drawStageBg();
+    drawVolley();
     drawWorld();
     ctx.save(); ctx.translate(-G.camX, 0);
     // dust 用世界座標
@@ -484,7 +504,7 @@ function pauseUpdate() {
     const it = PAUSE_ITEMS[G.pauseSel];
     if (it === '繼續') G.paused = false;
     else if (it === '出招表') G.showMoves = true;
-    else if (it === '重新開始') { G.paused = false; G.score = 0; go(G.scene === 'ride' ? 'ridein' : 'stagein'); }
+    else if (it === '重新開始') { G.paused = false; G.score = 0; go(G.scene === 'ride' ? 'ridein' : G.scene === 'bonus' ? 'bonusin' : 'stagein'); }
     else if (it === '回到標題') { G.paused = false; go('title'); }
     else if (it === '聲音') Audio2.toggleMute();
   }
@@ -527,7 +547,10 @@ SCENES.continue = {
     text('攻擊鍵：接關（分數歸零）', W / 2, 160, { c: '#ffffff', a: 'c', o: '#000' });
   },
 };
-SCENES.outro = storyScene(() => OUTRO, () => go('ending'), 'ending');
+SCENES.story2 = storyScene(() => OUTRO, () => { G.stageIdx = 1; go('stagein'); }, 'title');
+SCENES.outro = SCENES.story2;
+SCENES.story3 = storyScene(() => STORY3, () => go('bonusin'), 'title');
+SCENES.story4 = storyScene(() => STORY4, () => go('ending'), 'ending');
 SCENES.ending = {
   enter() { Store.set('hi', G.hi); },
   update() { if (G.st > 90 && (Input.pressed.p || Input.pressed.start)) go('title'); },
@@ -540,7 +563,7 @@ SCENES.ending = {
     text('SCORE  ' + String(G.score).padStart(7, '0'), W / 2, 64, { c: '#ffd040', a: 'c', o: '#000' });
     text('HI  ' + String(G.hi).padStart(7, '0'), W / 2, 80, { c: '#c8c8d0', a: 'c', o: '#000' });
     text('正式版預告', W / 2, 110, { c: '#ff8070', a: 'c', o: '#000' });
-    text('黃府鴻門宴・出城剿匪・碉樓決戰黃四郎', W / 2, 126, { c: '#ffffff', a: 'c', o: '#000' });
+    text('出城剿匪・假麻子・碉樓決戰黃四郎', W / 2, 126, { c: '#ffffff', a: 'c', o: '#000' });
     text('四哥、五哥、七弟登場', W / 2, 142, { c: '#ffffff', a: 'c', o: '#000' });
     ctx.globalAlpha = 1;
     if (G.st > 90 && (G.t >> 5) & 1) text('THANK YOU FOR PLAYING', W / 2, 176, { c: '#ffd040', a: 'c', o: '#000' });

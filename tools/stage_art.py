@@ -6,9 +6,9 @@ from PIL import Image, ImageDraw
 
 W, H = 384, 216
 BGS = ['bg1', 'bg2', 'bg3', 'bg4', 'bg5', 'title', 'ending', 'r_far']
-PANELS = ['p_ridge', 'p_hotpot', 'p_scope', 'p_split', 'p_axes', 'p_flip', 'p_clock', 'p_caravan', 'p_gate', 'p_drum', 'p_liangfen', 'p_wu', 'p_gongping', 'p_stand', 'p_charge']
+PANELS = ['p_grave', 'p_cards', 'p_invite', 'p_banquet', 'p_toast', 'p_plot', 'p_raid', 'p_unmask', 'p_mourn', 'p_kidnap', 'p_silver', 'p_huajie', 'p_situng', 'p_fanyi', 'p_ridge', 'p_hotpot', 'p_scope', 'p_split', 'p_axes', 'p_flip', 'p_clock', 'p_caravan', 'p_gate', 'p_drum', 'p_liangfen', 'p_wu', 'p_gongping', 'p_stand', 'p_charge']
 import os
-PORTRAIT_IDS = ['dage', 'erge', 'sange', 'liuzi', 'tang', 'huwan', 'wu', 'guard', 'mask', 'soldier']
+PORTRAIT_IDS = ['dage', 'erge', 'sange', 'liuzi', 'tang', 'huwan', 'wu', 'guard', 'mask', 'soldier', 'huang', 'huajie']
 
 
 def url(im, fmt='PNG'):
@@ -112,7 +112,7 @@ def train():
     return sm
 
 
-FACADE_H = {'f_gate': 138, 'f_shop1': 118, 'f_yamen': 108, 'f_shop2': 132, 'f_noodle': 100, 'f_shop3': 124, 'f_wall': 84, 'f_huang': 140}
+FACADE_H = {'g_hall': 128, 'g_corridor': 96, 'g_rooms': 124, 'g_moon': 92, 'g_gate': 120, 'f_gate': 138, 'f_shop1': 118, 'f_yamen': 108, 'f_shop2': 132, 'f_noodle': 100, 'f_shop3': 124, 'f_wall': 84, 'f_huang': 140}
 
 
 def facade(key):   # 建築立面：去洋紅底、裁到建築本身、縮到指定高度
@@ -123,7 +123,7 @@ def facade(key):   # 建築立面：去洋紅底、裁到建築本身、縮到�
 
 def sky(key):
     im = Image.open(f'work/art/{key}.png').convert('RGB')
-    return im.resize((480, round(im.height * 480 / im.width)), Image.LANCZOS).quantize(colors=128, method=Image.Quantize.MAXCOVERAGE, dither=Image.Dither.NONE).convert('RGB')
+    return im.resize((960, round(im.height * 960 / im.width)), Image.LANCZOS).quantize(colors=128, method=Image.Quantize.MAXCOVERAGE, dither=Image.Dither.NONE).convert('RGB')
 
 
 def ground():
@@ -134,7 +134,7 @@ def ground():
 
 bgs = {k: bg(k) for k in BGS if os.path.exists(f'work/art/{k}.png')}
 bgs.update({k: facade(k) for k in FACADE_H if os.path.exists(f'work/art/{k}.png')})
-bgs.update({k: sky(k) for k in ('sky_day', 'sky_dusk') if os.path.exists(f'work/art/{k}.png')})
+bgs.update({k: sky(k) for k in ('sky_day', 'sky_dusk', 'sky_night') if os.path.exists(f'work/art/{k}.png')})
 if os.path.exists('work/art/ground.png'): bgs['ground'] = ground()
 bgs.update({k: panel(k) for k in PANELS if os.path.exists(f'work/art/{k}.png')})
 if os.path.exists('work/art/r_near.png'): bgs['r_near'] = near()

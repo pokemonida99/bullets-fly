@@ -2,8 +2,13 @@
 'use strict';
 
 // ---------- 版本與更新紀錄（改版時一起更新；標題畫面與桌墊都看得到） ----------
-const VERSION = 'v0.2';
+const VERSION = 'v0.3';
 const CHANGELOG = [
+  ['v0.3', '新第二關「夜襲縣衙」：胡萬帶戴九筒面具的假麻匪夜襲，屋頂有槍手掃射（看地上的紅圈），頭目胡萬',
+    '新小遊戲「散銀子」：沿街把麻袋銀子丟進窗戶，丟越多分數越高',
+    '劇情接到第 90 場：六子墓前、鴻門宴（三張牌、請帖、酒一口一口喝）、殺雞取卵、揭面具、綁票、花姐、四筒對四筒、翻譯翻譯什麼叫驚喜',
+    '選六子的話六子活著；選其他角色就照劇本，六子在涼粉案死去',
+    '湯師爺標成「高難度」：給想挑戰的玩家用'],
   ['v0.2', '新序章「青石嶺 劫火車」：騎白馬追馬拉火車，打倒車窗裡的鐵血十八星陸軍，甩板斧讓火車翻進河裡',
     '劇情過場改成劇本經典場面插圖：火車火鍋「大風起兮雲飛揚」、讓子彈飛一會兒、鬧鐘逼問、上任鵝城、冤鼓、涼粉、武舉人、公平公平還是公平、站著把錢掙了',
     '動作更順：每位角色動作格從 24 格增加到 56 格（走路 6 格、跳躍 4 段、每招都有預備與收招），敵人與頭目也加格',
@@ -96,7 +101,7 @@ const CHARS = [
       sup: { seq: [['sp0', 32], ['sp1', 8], ['sp2', 8], ['sp3', 30], ['sp4', 12], ['sp5', 8]], inv: [0, 98], ev: { 0: 'roarS', 44: 'stomp' } },
     } },
   { id: 'qidi', name: '七弟', locked: true, title: '小個子・彈弓' },
-  { id: 'tang', name: '湯師爺', full: '湯師爺（馬邦德）', title: '技巧型・大聲公', spd: 1.4, hp: 100, pow: 0.85, jump: 5.0, stat: [2, 1, 2],
+  { id: 'tang', name: '湯師爺', full: '湯師爺（馬邦德）', title: '高難度・大聲公', spd: 1.4, hp: 100, pow: 0.85, jump: 5.0, stat: [2, 1, 2],
     line: '鵝城的父老鄉親們——！', pick: '在下湯師爺。',
     s1n: '撒銀元', s2n: '大聲公', supn: '天降橫財',
     moves: {
@@ -122,7 +127,11 @@ const FOES = {
   guardB: { base: 'guard', name: '護院頭', hp: 42, spd: 0.85, dmg: 7, wind: 16, act: 8, rec: 18, reach: 34, box: [4, 56, 36, 22], score: 500, tint: '#2050ff' },
   guardR: { base: 'guard', name: '狠護院', hp: 30, spd: 1.15, dmg: 7, wind: 10, act: 8, rec: 16, reach: 34, box: [4, 56, 36, 22], score: 500, tint: '#ff2020' },
   mask: { name: '假麻匪', hp: 34, spd: 1.2, dmg: 8, wind: 12, act: 8, rec: 18, reach: 30, box: [4, 60, 32, 30], score: 500, lunge: true },
+  maskB: { base: 'mask', name: '假麻匪頭', hp: 48, spd: 1.1, dmg: 9, wind: 12, act: 8, rec: 16, reach: 30, box: [4, 60, 32, 30], score: 700, lunge: true, tint: '#2050ff' },
+  maskR: { base: 'mask', name: '狠麻匪', hp: 36, spd: 1.45, dmg: 9, wind: 9, act: 8, rec: 14, reach: 30, box: [4, 60, 32, 30], score: 700, lunge: true, tint: '#ff2020' },
+  maskr: { name: '假麻匪 槍手', hp: 30, spd: 1.0, dmg: 8, wind: 14, act: 8, rec: 18, reach: 30, box: [4, 58, 30, 22], score: 600, rifle: true },
   huwan: { name: '黃府管家 胡萬', hp: 150, spd: 1.2, dmg: 9, boss: true, score: 3000 },
+  huwan2: { base: 'huwan', name: '假麻匪頭目 胡萬', hp: 230, spd: 1.35, dmg: 10, boss: true, score: 6000, fast: true },
   wu: { name: '團練教頭 武舉人', hp: 320, spd: 1.0, dmg: 14, boss: true, score: 8000, heavy: true },
 };
 
@@ -144,6 +153,23 @@ const STAGE1 = {
   ],
 };
 
+const STAGE2 = {
+  name: '第二關　夜襲縣衙', sub: '—— 殺雞取卵 ——', segs: 4, night: true,
+  anchors: [['g_gate', 0], ['g_hall', 360], ['g_rooms', 790], ['g_moon', null]], fillers: ['g_corridor', 'g_moon', 'g_corridor'], sky: ['sky_night'],
+  props: [{ k: 'jar', x: 260, z: 162 }, { k: 'crate', x: 610, z: 198 }, { k: 'jar', x: 980, z: 160 }, { k: 'crate', x: 1300, z: 196 }],
+  waves: [
+    { lock: 0, talk: 's2start', music: 'stage1', groups: [{ left: 9, foes: [['mask', 'R'], ['mask', 'L']] }, { left: 1, foes: [['maskr', 'R'], ['mask', 'R']] }] },
+    { lock: 384, groups: [{ left: 9, foes: [['mask', 'R'], ['maskr', 'L'], ['maskB', 'R']] }, { left: 1, foes: [['maskR', 'L'], ['maskr', 'R']] }] },
+    { lock: 768, talk: 's2bed', volley: true, groups: [{ left: 9, foes: [['maskR', 'R'], ['maskr', 'R'], ['mask', 'L']] }, { left: 1, foes: [['maskB', 'R'], ['maskr', 'L'], ['mask', 'R']] }] },
+    { lock: 1152, talk: 'huwan2', music: 'boss', boss: 'huwan2', bossTalk: 'huwan2Down', groups: [{ left: 9, foes: [['huwan2', 'R', 180]] }, { left: 1, hpBelow: 0.6, foes: [['mask', 'L'], ['maskr', 'R']] }, { left: 1, hpBelow: 0.3, foes: [['maskR', 'L'], ['maskB', 'R']] }] },
+  ],
+};
+STAGE1.bgs = STAGE1.segs; STAGE1.segs = 5; STAGE1.sub = '—— 北洋年間　南部中國 ——';
+STAGE1.anchors = [['f_gate', 0], ['f_yamen', 470], ['f_noodle', 850], ['f_wall', 1330], ['f_huang', null]]; STAGE1.fillers = ['f_shop1', 'f_shop2', 'f_shop3']; STAGE1.sky = ['sky_day', 'sky_dusk'];
+STAGE1.next = 'story2';
+STAGE2.next = 'story3';
+const STAGES = [STAGE1, STAGE2];
+
 // ---------- 台詞 ----------
 // 說話者：角色 id、'P'＝目前玩家、'' 旁白。台詞照劇本原句（出處場次見 docs/story.md），髒話拿掉
 const TALK = {
@@ -153,8 +179,13 @@ const TALK = {
   huwanDown: [['huwan', '你不敢殺我，你不能殺我！']],   // 45
   wu: [{ panel: 'p_wu' }, ['wu', '可惜了老子的酒，老子的雅興全讓你給毀了！'], ['wu', '老子是光緒三十一年皇上欽點的武舉人。'], ['dage', '哪個皇上？我見過嗎？']],   // 36、37
   wuDown: [['wu', '別打了！我磕！我磕！'], ['wu', '需要兄弟的時候，你吆喝一聲，兄弟立馬出現！']],   // 37、179
+  s2start: [{ panel: 'p_raid' }, ['', '房頂之上，胡萬一派，端槍狂轟，門窗俱裂。'], ['', '張牧之抄槍躥起，縱躍出窗。']],   // 65、66
+  s2bed: [['', '縣長臥室這廂，床板側翻，滿目槍孔。'], ['', '屋頂還有人在開槍——看地上的紅圈！']],   // 65
+  huwan2: [['huwan', '殺雞取卵！'], ['huwan', '一定要在縣長的床上！']],   // 57
+  huwan2Down: [{ panel: 'p_unmask' }, ['dage', '我居然上了你們的當！'], ['dage', '說，誰讓你冒充麻匪？'], ['huwan', '老子就是麻匪！張麻子是我大哥！'], ['dage', '哦，那你是老幾啊？'], ['huwan', '老三。'],
+    ['dage', '是你大哥張麻子派你來的，還是你老爺黃四郎派你來的？'], ['huwan', '黃老爺。'], ['dage', '不錯，張麻子！'], ['huwan', '可大哥您臉上沒麻子。'], ['dage', '黃四郎，臉上有四嗎？'], ['huwan', '懂了！'], ['', '砰！']],   // 67
 };
-const NAMES = { dage: '大哥 張麻子', erge: '二哥', sange: '三哥', liuzi: '六子', tang: '湯師爺', guard: '黃家護院', mask: '假麻匪', huwan: '胡萬', wu: '武舉人', shiye: '湯師爺', wife: '縣長夫人', soldier: '鐵血十八星陸軍', '': '' };
+const NAMES = { huang: '黃四郎', huajie: '花姐', hubai: '胡百', huqian: '胡千', dage: '大哥 張麻子', erge: '二哥', sange: '三哥', liuzi: '六子', tang: '湯師爺', guard: '黃家護院', mask: '假麻匪', huwan: '胡萬', wu: '武舉人', shiye: '湯師爺', wife: '縣長夫人', soldier: '鐵血十八星陸軍', '': '' };
 
 // 過場（bg：劇情插圖；lines：[說話者, 台詞, 顯示名稱（可省）]）——台詞照劇本原句，括號內是劇本場次
 const INTRO = [
@@ -170,8 +201,28 @@ const MIDRO = [
   { bg: 'p_caravan', lines: [['dage', '弟兄們，上任鵝城——！'], ['', '上任鵝城！', '眾兄弟'], ['dage', '師爺！當縣長最要緊的是什麼啊？'], ['tang', '忍耐！']] },   // 27、28
   { bg: 'p_gate', lines: [['', '「鵝城」二字赫然入目！'], ['', '恭迎縣長大人！', '眾老者'], ['tang', '此乃南國一霸——黃四郎。'], ['tang', '乾的是倒賣人口、倒賣鴉片的大生意。']] },   // 29
 ];
-const OUTRO = [
+// 頁或句子的第 4 個欄位／cond：'dead'＝玩家不是六子（六子照劇本死去）、'alive'＝玩家選六子（六子活著）
+const OUTRO = [   // 第一關之後
   { bg: 'p_gongping', lines: [['dage', '起來！不準跪！'], ['dage', '我來鵝城只辦三件事，'], ['dage', '公平！公平！還是公平！']] },   // 38
   { bg: 'p_stand', lines: [['tang', '那你是想站著，還是想掙錢呢？'], ['dage', '我是想站著，還把錢掙了。'], ['tang', '敢問九筒大哥何方神聖？'], ['dage', '鄙人，張麻子！']] },   // 34
-  { bg: 'p_charge', lines: [['', '黃四郎的碉樓還在。'], ['dage', '槍在手，跟我走！'], ['', '殺四郎！', '老四'], ['', '搶碉樓！', '老五']] },   // 160
+  { bg: 'p_grave', cond: 'dead', lines: [['', '六子為了證明自己只吃了一碗粉，剖腹而死。'], ['', '六弟，四哥發誓替你報仇！', '老四'], ['sange', '六弟，三哥發誓替你報仇！'], ['dage', '六爺，一路走好！'], ['', '六爺一路走好！', '眾兄弟']] },   // 45、47
+  { bg: 'p_cards', lines: [['huang', '先打哪張牌？'], ['huang', '請客、斬首、收下當狗！'], ['', '斬！', '胡千'], ['huang', 'No——請客！']] },   // 48
+  { bg: 'p_invite', lines: [['', '鵝城小民黃四郎！恭請新任縣長馬邦德，光臨寒舍，略備薄酒，以表寸心……', '胡百'], ['tang', '鴻門宴！凶多吉少。'], ['dage', '什麼鴻門宴？就是惡霸請土匪！']] },   // 49、50
+  { bg: 'p_banquet', cond: 'dead', lines: [['huang', '六爺的死，壯烈！'], ['huang', '如果真的是黃某指使，那我就像六爺一樣，當眾剖腹自殺！'], ['dage', '黃老爺，我聽說自裁用短刀。長刀歸介錯人。']] },   // 53
+  { bg: 'p_banquet', cond: 'alive', lines: [['huang', '縣長，師爺！大駕光臨！有失遠迎！'], ['tang', '黃老爺的宅邸，竹林掩映，碉樓聳立，易守難攻，萬夫莫開啊！']] },   // 51、52
+  { bg: 'p_toast', lines: [['huang', '我們鵝城有兩大家族，都是把人賣到 America，修鐵路，掙的都是 dollar。'], ['tang', 'Dollar——到了！黃老爺一來，錢就到了。'], ['tang', '酒一口一口喝，路一步一步走！'], ['tang', '步子邁大了，咔，容易扯著蛋！'], ['huang', '師爺，高！縣長，硬！'], ['', '黃老爺，又高又硬！', '張牧之、老湯']] },   // 53、55
+  { bg: 'p_plot', lines: [['huang', '今晚，殺雞取卵！一定要在縣長的床上。'], ['huang', '哪個是雞？'], ['huwan', '縣長！']] },   // 57
+];
+const STORY3 = [   // 第二關之後 → 散銀子
+  { bg: 'p_mourn', lines: [['tang', '我說我當不了縣長！你非要花錢幫我買這個官！'], ['tang', '她是我老婆！我是縣長，我就是馬邦德！'], ['dage', '啊——我說我當不了縣長！你非得給我花錢買這個官！'], ['huang', '你呀，太年輕了，不該一進城就槍斃麻匪。']] },   // 68、69
+  { bg: 'p_kidnap', lines: [['', '我們是張麻子張大爺的隊伍！要錢！不要命！', '九筒'], ['', '三天之內錢不到就撕票！記住，我是九筒！', '九筒'], ['huang', '替身就是為我幹這個的！這個錢，我一分都不出！'], ['dage', '這替身這麼有用啊！得空幫我也找一個。']] },   // 70
+  { bg: 'p_silver', lines: [['dage', '人不走，錢也不要了！都發出去！'], ['sange', '這錢你都發給誰吧？'], ['dage', '發給窮人唄！'], ['tang', '那誰是窮人啊？'], ['dage', '誰窮，誰就是窮人。']] },   // 72
+];
+const STORY4 = [   // 散銀子之後
+  { bg: 'p_silver', lines: [['', '老天爺啊！', '百姓'], ['tang', '你劫我的時候戴的是九餅，我這是多少？'], ['dage', '自己摸摸。'], ['tang', '一餅。'], ['dage', '哈哈哈哈，過癮嗎？'], ['tang', '過癮！']] },   // 73
+  { bg: 'p_huajie', lines: [['huajie', '原來縣長的人，是麻匪？'], ['sange', '我們，就想給你發點兒錢！']] },   // 75
+  { bg: 'p_situng', lines: [['dage', '那邊領頭的戴的是幾筒看見了嗎？'], ['sange', '四筒。'], ['', '衣服一樣，面具相同，全是四筒，敵我難辨。'], ['', '都是四筒，下不了手啊！', '黃家人'], ['dage', '一、二、三，撤！']] },   // 85、87
+  { bg: 'p_fanyi', lines: [['dage', '胡萬，就是麻匪！麻匪，就是胡萬！'], ['huang', '三天之後，一定給縣長一個驚喜。'], ['dage', '湯師爺，你給翻譯翻譯，什麼叫驚喜？'], ['tang', '不用翻譯，就是驚喜啊！'], ['dage', '我就想讓你翻譯翻譯，什麼叫驚喜！'],
+    ['huang', '驚喜就是三天之後，我出一百八十萬給你們出城剿匪！'], ['dage', '大哥這是驚喜啊，小弟我願意等你三天。']] },   // 90
+  { bg: 'p_charge', lines: [['', '下一關：出城剿匪。'], ['dage', '槍在手，跟我走！'], ['', '殺四郎！', '老四'], ['', '搶碉樓！', '老五']] },   // 預告（160）
 ];

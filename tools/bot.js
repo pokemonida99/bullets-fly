@@ -22,11 +22,12 @@ window.botStep = () => {
     if (r < 0.04) K.s1 = true; else if (r < 0.06 && P.hp > 30) K.s2 = true; else if (G.t % 3 === 0) K.p = true;
   }
 };
-window.runBot = (ci = 0, maxF = 60 * 60 * 8) => {
-  Audio2.stop(); G.chIdx = ci; G.score = 0; go('stagein'); step(110, false);
+window.runBot = (ci = 0, maxF = 60 * 60 * 8, stg = 0) => {
+  Audio2.stop(); G.chIdx = ci; G.score = 0; G.stageIdx = stg; go('stagein'); step(110, false);
   let f = 0, minHp = 999, deaths = 0, lastLives = P.lives;
   const log = [];
   while (f < maxF && ['play', 'stagein', 'continue'].includes(G.scene)) {
+    if (G.scene === 'play' && G.clear && G.clearT > 200) break;
     if (G.scene === 'continue') { deaths++; log.push('continue@' + f + ' wave' + G.wave); Input.key.p = true; tick(); Input.key.p = false; tick(); }
     botStep(); tick(); f++;
     if (P) { minHp = Math.min(minHp, P.hp); if (P.lives < lastLives) { log.push('lifeLost@' + f + ' wave' + G.wave); } lastLives = P.lives; }
@@ -66,4 +67,19 @@ window.runRide = (ci = 0, maxF = 60 * 60 * 4) => {
   for (const k in Input.key) Input.key[k] = false;
   render();
   return { ch: PLAYABLE[ci].id, scene: G.scene, sec: Math.round(f / 60), kills: R.kills, lives: P.lives, hp: P.hp };
+};
+
+// 散銀子：看到窗戶就在適當的時機丟
+window.runBonus = (ci = 0) => {
+  Audio2.stop(); G.chIdx = ci; P = null; go('bonusin'); step(125, false);
+  let f = 0;
+  while (G.scene === 'bonus' && f < 60 * 60) {
+    const K = Input.key; for (const k in K) K[k] = false;
+    const w = B.wins.find(w => !w.lit && w.x - P.x > 30 && w.x - P.x < 90);
+    if (w && B.cd <= 0 && G.t % 2 === 0) { const dy = (P.z - 56) - w.y; if (dy > 40) K.up = true; else if (dy < 20) K.down = true; K.p = true; }
+    const o = B.obs.find(o => o.x > P.x && o.x - P.x < 26 && Math.abs(o.z - P.z) < 9); if (o && P.h === 0) K.k = true;
+    tick(); f++;
+  }
+  for (const k in Input.key) Input.key[k] = false;
+  return { hits: B.hits, best: B.best, score: B.score, sec: Math.round(f / 60), scene: G.scene };
 };
