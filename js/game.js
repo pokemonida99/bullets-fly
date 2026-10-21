@@ -152,6 +152,8 @@ function updatePlayer(p) {
       break;
     }
     case 'hurt': if (--p.t2 <= 0) p.st = 'idle'; break;
+    case 'drop': p.vh -= 0.5; p.h = Math.max(0, p.h + p.vh); if (p.h <= 0) dropLand(p); break;
+    case 'land': if (--p.t2 <= 0) p.st = 'idle'; break;
     case 'guard': {   // 老七「被動」：正面攻擊全擋，擋到就自動反擊
       p.t2++; if (p.blockT > 0) p.blockT--;
       if (dx) p.face = dx;
@@ -190,6 +192,8 @@ function playerFrame(p) {
     case 'move': case 'super': return p.mv ? moveFrame(p) : 'idle0';
     case 'grab': return p.sub ? moveFrame(p) : 'grab';
     case 'guard': return p.blockT > 0 ? 's2b' : 's2a';
+    case 'drop': return p.vh > -3 ? 'jump2' : 'jump3';
+    case 'land': return p.t2 > 8 ? 'jump0' : 'idle1';
     case 'hurt': return p.t2 > 8 ? 'hurt0' : 'hurt1';
     case 'fall': return p.h > 2 ? 'fall' : 'down';
     case 'down': return 'down';
@@ -246,12 +250,23 @@ function hurtPlayer(p, dmg, kd, dir) {
   return true;
 }
 function playerDie(p) {
-  if (p.lives > 0) {
-    p.lives--; p.hp = p.maxhp; p.st = 'idle'; p.inv = 150; p.meter = 50;
-    // 復活時周圍的敵人被震開
-    for (const e of foes) if (Math.abs(e.x - p.x) < 90 && canHit(e)) knock(e, Math.sign(e.x - p.x) || 1, 0, true);
-    sfx('superStart'); G.flash = 8;
-  } else { p.st = 'dead'; G.resume = 'play'; go('continue'); }
+  if (p.lives > 0) { p.lives--; p.hp = p.maxhp; p.meter = 50; dropIn(p); }
+  else { p.st = 'dead'; G.resume = 'play'; go('continue'); }
+}
+// 復活／接關：從畫面上方跳進來，蹲著落地，衝擊波讓畫面上的敵人全部倒下並扣血
+function dropIn(p) {
+  p.st = 'drop'; p.h = 170; p.vh = 0; p.mv = null; p.inv = 999; p.grab = null; p.run = 0;
+  p.x = clamp(p.x, G.camX + 60, G.camX + W - 60);
+  sfx('whoosh');
+}
+function dropLand(p) {
+  p.h = 0; p.st = 'land'; p.t2 = 26; p.inv = 120;
+  sfx('quake'); sfx('superStart'); G.shake = 14; G.flash = 8;
+  fx.push({ kind: 'ring', x: p.x, z: p.z, t: 0 }); fx.push({ kind: 'ring', x: p.x, z: p.z, t: -6 }); fx.push({ kind: 'ring', x: p.x, z: p.z, t: -12 });
+  for (let i = 0; i < 18; i++) dust(p.x + rnd(-60, 60), p.z + rnd(-8, 8), 2);
+  for (const e of foes) if (onScreen(e) && e.st !== 'dead' && e.st !== 'kneel' && e.st !== 'flee' && e.st !== 'enter')
+    hitFoe(e, e.type.boss ? 15 : 25, true, Math.sign(e.x - p.x) || 1, p, { all: true, launch: 4 });
+  for (const q of projs) if (q.from === 'e') q.dead = true;
 }
 
 // ---------- 招式事件（飛道具、超必殺） ----------
@@ -264,6 +279,8 @@ function moveEvent(p, ev) {
     case 'knives': for (const dz of [-14, 0, 14]) proj({ kind: 'knife', x: p.x + f * 22, z: clamp(p.z + dz, ZMIN, ZMAX), h: 44, vx: f * 6.5, dmg: 7 * p.ch.pow, pierce: 1, life: 90 }); sfx('knife'); break;
     case 'coins3': [3.4, 4.4, 5.4].forEach((v, i) => proj({ kind: 'coin', x: p.x + f * 16, z: p.z + (i - 1) * 6, h: 40, vx: f * v, vh: 3.2, g: 0.22, dmg: 6 * p.ch.pow, pierce: 1, ground: true })); sfx('coins'); break;
     case 'slash': sfx('slash'); break;
+    case 'bullet2': proj({ kind: 'bullet', x: p.x + f * 30, z: p.z, h: 44, vx: f * 8.5, dmg: 7 * p.ch.pow, pierce: 4, life: 80, heavy: true }); sfx('gun'); spark(p.x + f * 30 - G.camX, p.z - 44, true, '#ffd040'); break;
+    case 'finisherShot': proj({ kind: 'bullet', x: p.x + f * 30, z: p.z, h: 46, vx: f * 9, dmg: 9 * p.ch.pow, pierce: 9, kd: true, life: 70, heavy: true }); sfx('gun'); G.shake = 3; break;
     case 'pshot': proj({ kind: 'bullet', x: p.x + f * 28, z: p.z, h: 46, vx: f * 7.5, dmg: 5, pierce: 1, life: 70 }); sfx('gun'); spark(p.x + f * 28 - G.camX, p.z - 46, false, '#ffd040'); break;
     case 'pshot2': proj({ kind: 'bullet', x: p.x + f * 30, z: p.z, h: 46, vx: f * 8.5, dmg: 10, pierce: 2, kd: true, life: 80, heavy: true }); sfx('gun'); G.shake = 2; spark(p.x + f * 30 - G.camX, p.z - 46, true, '#ffd040'); break;
     case 'hat': proj({ kind: 'hat', x: p.x + f * 20, z: p.z, h: 44, vx: f * 6.5, dmg: 7, pierce: 99, life: 400, owner: p, back: false, zr: 10 }); sfx('throw'); break;
@@ -299,7 +316,7 @@ function moveEvent(p, ev) {
     }
     case 'bulletRain': {
       sfx('gun'); sfx('gunFar'); G.shake = 6; G.flash = 4;
-      for (const e of foes) if (canHit(e, true) && onScreen(e)) { hitFoe(e, 32, true, Math.sign(e.x - p.x) || 1, p, { launch: 3.6, all: true }); spark(e.x - G.camX, e.z - 40, true); }
+      for (const e of foes) if (canHit(e, true) && onScreen(e)) { hitFoe(e, 44, true, Math.sign(e.x - p.x) || 1, p, { launch: 3.6, all: true }); spark(e.x - G.camX, e.z - 40, true); }
       fx = fx.filter(f => f.kind !== 'hang');
       break;
     }
@@ -406,9 +423,10 @@ const onScreen = e => e.x > G.camX - 10 && e.x < G.camX + W + 10;
 
 function hitFoe(e, dmg, kd, dir, a, hb = {}) {
   if (e.st === 'dead') return;
+  if (e.st === 'shield' && dir === -e.face && !hb.all && (!a || a.h < 8)) { sfx('ricochet'); spark(e.x + e.face * 16 - G.camX, e.z - 44, false, '#ffb0b0'); pop(e.x, e.z - 70, '擋！', '#ff8080'); return; }
   if (e.type.boss && e.ai.armor && !hb.all && !kd) { e.hp -= dmg * 0.6; e.flash = 4; sfx('hit'); G.hitstop = 2; checkFoeDead(e, dir); return; }
   e.hp -= dmg; e.flash = 5;
-  G.score += Math.round(dmg * 10); if (P) P.meter = Math.min(100, P.meter + dmg * 0.55);
+  G.score += Math.round(dmg * 10); if (P) P.meter = Math.min(100, P.meter + dmg * 0.55 * (P.ch.meterGain || 1));
   G.foe = e; G.foeT = 150;
   G.hitstop = kd ? 6 : 3;
   sfx(kd || dmg >= 10 ? 'hitBig' : 'hit');
@@ -490,7 +508,7 @@ function updateFoe(e) {
     case 'flee': { e.x += 2.6; e.face = 1; e.walkT = (e.walkT || 0) + 1; if (e.x > G.camX + W + 40) e.gone = true; return; }
     case 'kneel': return;
   }
-  if (e.type.boss) return e.kind === 'wu' ? aiWu(e, p) : aiHuwan(e, p);
+  if (e.type.boss) return e.kind === 'wu' ? aiWu(e, p) : e.kind === 'jiamazi' ? aiJiamazi(e, p) : e.kind === 'huang' ? aiHuang(e, p) : aiHuwan(e, p);
   if (e.type.rifle) return aiRifle(e, p);
   aiGrunt(e, p);
 }
@@ -576,7 +594,8 @@ function foeFrame(e) {
     case 'fall': case 'thrown': return e.h > 2 ? 'fall' : (k === 'huwan' && e.hp <= 0 ? 'down2' : 'down');
     case 'down': case 'dead': return k === 'huwan' && e.hp <= 0 ? 'down2' : 'down';
     case 'getup': return k === 'guard' || k === 'mask' || k === 'maskr' ? 'getup' : 'hurt1';
-    case 'kneel': return k === 'huwan' ? 'beg' : 'kneel';
+    case 'shield': return (e.t / 10 | 0) & 1 ? 'pwalk' : 'popen';
+    case 'kneel': return k === 'huwan' || k === 'jiamazi' ? 'beg' : k === 'huang' ? 'kneel2' : 'kneel';
     case 'raim': return e.t2 > 18 ? 'raim' : 'aim';
     case 'rfire': return e.t2 > 10 ? 'fire' : 'aim';
     case 'boss': {
@@ -593,7 +612,8 @@ function foeFrame(e) {
 function foeDie(e) {
   if (e.type.boss) {
     if (e.key === 'huwan') { e.st = 'flee'; e.hp = 0; G.score += e.type.score; startTalk('huwanDown'); return; }
-    if (e.key === 'huwan2') { e.st = 'kneel'; e.hp = 0; G.score += e.type.score; return; }
+    if (e.key === 'huwan2' || e.key === 'jiamazi' || e.key === 'huang') { e.st = 'kneel'; e.hp = 0; G.score += e.type.score; if (e.key === 'huang') for (const t of foes) if (t.key === 'tishen' && t.st !== 'dead') { t.st = 'dead'; t.t2 = 30; } return; }
+    if (e.key === 'tishen') { e.st = 'dead'; e.t2 = 40; G.score += e.type.score; pop(e.x, e.z - 90, '我不是他！我真的不是他！', '#ffffff'); return; }
     e.st = 'kneel'; e.hp = 0; G.score += e.type.score;
     for (const d of [-1, 1]) items.push({ k: 'goose', x: e.x + d * 22, z: clamp(e.z + d * 6, ZMIN, ZMAX), h: 30, vh: 3, t: 0 });   // 劇本：武舉人一手拎著兩隻燒鵝
     return;
@@ -644,6 +664,105 @@ function aiHuwan(e, p) {
     e.st = 'boss'; e.mode = 'aim'; e.frame = 'aim'; e.t2 = fast ? 24 : 34; sfx('alert');
     if (Math.random() < 0.3) { e.mode = 'bow'; e.frame = 'bow'; e.t2 = 30; pop(e.x, e.z - 80, '請——', '#ffffff'); }
   }
+}
+
+// ---------- 頭目：假麻子（劇本第 92、124 場：黃四郎給的地雷、萬民傘） ----------
+// 埋地雷（亮紅燈的圓盤，踩到會炸）、開傘擋正面（從背後或跳起來打）、開槍
+function aiJiamazi(e, p) {
+  const A = e.ai, dxp = p.x - e.x, adx = Math.abs(dxp);
+  if (e.st === 'boss') {
+    e.t2--;
+    if (e.mode === 'aim' && e.t2 <= 0) { e.mode = 'fire'; e.frame = 'fire'; e.t2 = 16; sfx('gun'); proj({ kind: 'shot', from: 'e', x: e.x + e.face * 26, z: e.z, h: 46, vx: e.face * 4.8, dmg: 10, life: 120 }); }
+    else if (e.mode === 'mine' && e.t2 === 8) { G.mines.push({ x: e.x + e.face * 20, z: e.z, t: 0 }); sfx('blip'); }
+    if (e.t2 <= 0) { if (e.mode === 'mine') { e.mode = 'up'; e.frame = 'mineup'; e.t2 = 10; return; } e.st = 'idle'; A.cd = rndi(30, 60); }
+    return;
+  }
+  if (e.st === 'shield') {   // 傘擋正面
+    e.face = Math.sign(dxp) || e.face; e.x += e.face * 0.7; e.walkT = (e.walkT || 0) + 1;
+    if (--e.t2 <= 0) { e.st = 'idle'; A.cd = 30; }
+    return;
+  }
+  e.face = Math.sign(dxp) || e.face;
+  if (A.cd > 0) A.cd--;
+  if (A.cd <= 0) {
+    const r = Math.random();
+    if (r < 0.35 && G.mines.length < 5) { e.st = 'boss'; e.mode = 'mine'; e.frame = 'mine'; e.t2 = 22; return; }
+    if (r < 0.65) { e.st = 'shield'; e.t2 = 150; sfx('whiffBig'); pop(e.x, e.z - 84, '萬民傘！', '#ff8080'); return; }
+    if (Math.abs(p.z - e.z) < 10) { e.st = 'boss'; e.mode = 'aim'; e.frame = 'aim'; e.t2 = 26; sfx('alert'); return; }
+    A.cd = 20;
+  }
+  const tx = p.x - Math.sign(dxp || 1) * 90; let moved = false;
+  if (Math.abs(tx - e.x) > 5) { e.x += Math.sign(tx - e.x) * e.type.spd; moved = true; }
+  if (Math.abs(p.z - e.z) > 3) { e.z += Math.sign(p.z - e.z) * 0.6; moved = true; }
+  e.x = clamp(e.x, G.camX + 20, G.camX + W - 20);
+  e.st = moved ? 'walk' : 'idle'; if (moved) e.walkT = (e.walkT || 0) + 1;
+}
+function tickMines() {
+  for (const m of G.mines || []) {
+    m.t++;
+    if (m.t > 40 && !m.boom && Math.abs(P.x - m.x) < 12 && Math.abs(P.z - m.z) < 7 && P.h < 6) m.boom = 1;
+    if (m.t > 600) m.boom = m.boom || 1;
+    if (m.boom === 1) {
+      m.boom = 2; sfx('quake'); G.shake = 10; fx.push({ kind: 'ring', x: m.x, z: m.z, t: 0 }); for (let i = 0; i < 8; i++) dust(m.x + rnd(-14, 14), m.z, 2);
+      if (Math.abs(P.x - m.x) < 26 && Math.abs(P.z - m.z) < 12 && P.h < 20) hurtPlayer(P, 14, true, Math.sign(P.x - m.x) || 1);
+      for (const e of foes) if (canHit(e) && Math.abs(e.x - m.x) < 26 && Math.abs(e.z - m.z) < 12) hitFoe(e, 20, true, Math.sign(e.x - m.x) || 1, P, { all: true });
+    }
+  }
+  if (G.mines) G.mines = G.mines.filter(m => !m.boom);
+}
+
+// ---------- 頭目：黃四郎（劇本第 53 場武士長刀、第 159 場六顆子彈、第 30／32 場替身學話） ----------
+// 血剩 7 成、4 成時叫出替身楊萬樓：替身會「慢半拍」學黃四郎的動作——先動的那個才是本人
+function aiHuang(e, p) {
+  const A = e.ai, dxp = p.x - e.x, adx = Math.abs(dxp), decoy = e.type.decoy;
+  if (decoy) {   // 替身：照抄本人 24 幀前開始的動作
+    const real = foes.find(f => f.key === 'huang');
+    if (!real || real.st === 'kneel') { e.st = 'dead'; e.t2 = 30; return; }
+    const cmd = real.ai.log && real.ai.log.find(c => c.t === G.t - 24);
+    if (cmd && e.st !== 'boss' && e.st !== 'hurt' && e.st !== 'fall' && e.st !== 'down') { e.st = 'boss'; e.mode = cmd.mode; e.frame = cmd.frame; e.t2 = cmd.t2; e.hitDone = false; e.shots = 0; }
+  }
+  if (e.st === 'boss') {
+    e.t2--;
+    const m = e.mode;
+    if (m === 'sword') {
+      if (e.t2 === 24) e.frame = 'raise';
+      if (e.t2 === 12) { e.frame = 'slash'; sfx('slash'); }
+      if (e.t2 < 12 && e.t2 > 4 && !e.hitDone) { const bx = boxWorld(e, [4, 78, 56, 70]); if (overlapBody(bx, p, 12, e.z)) { e.hitDone = true; hurtPlayer(p, decoy ? 9 : 15, true, e.face); } }
+      if (e.t2 === 4) e.frame = 'slash2';
+    } else if (m === 'gun') {
+      e.face = Math.sign(dxp) || e.face;
+      if (e.t2 % 12 === 0 && e.t2 > 0) { e.frame = 'gfire'; sfx('gun'); proj({ kind: 'shot', from: 'e', x: e.x + e.face * 28, z: e.z, h: 50, vx: e.face * 3.8, dmg: decoy ? 3 : 6, life: 140 }); }
+      else if (e.t2 % 12 === 6) e.frame = 'gaim';
+    } else if (m === 'hat') {
+      if (e.t2 === 10) { sfx('throw'); proj({ kind: 'hhat', from: 'e', x: e.x + e.face * 20, z: e.z, h: 56, vx: e.face * 3.4, vh: 2, g: 0.08, dmg: decoy ? 4 : 8, life: 140, ground: true, kd: true }); }
+    } else if (m === 'summon') {
+      if (e.t2 === 30) { const t = spawnFoe('tishen', e.x < G.camX + W / 2 ? 'R' : 'L', clamp(p.z + rndi(-12, 12), ZMIN, ZMAX)); t.st = 'enter'; t.tx = e.x < G.camX + W / 2 ? G.camX + W - 60 : G.camX + 60; G.foe = e; G.foeT = 99999; pop(e.x, e.z - 100, '贗品是個好東西！', '#ffd040'); sfx('decide'); }
+    }
+    if (e.t2 <= 0) { e.st = 'idle'; e.h = 0; e.hitDone = false; A.cd = m === 'gun' ? rndi(70, 100) : rndi(34, 60); }
+    return;
+  }
+  e.face = Math.sign(dxp) || e.face;
+  if (decoy) {   // 替身自己只會跟著走
+    const tx = p.x - Math.sign(dxp || 1) * 70;
+    if (Math.abs(tx - e.x) > 5) { e.x += Math.sign(tx - e.x) * e.type.spd; e.st = 'walk'; e.walkT = (e.walkT || 0) + 1; } else e.st = 'idle';
+    e.x = clamp(e.x, G.camX + 20, G.camX + W - 20); return;
+  }
+  A.log = (A.log || []).filter(c => G.t - c.t < 40);
+  const start = (mode, frame, t2) => { e.st = 'boss'; e.mode = mode; e.frame = frame; e.t2 = t2; e.hitDone = false; A.log.push({ t: G.t, mode, frame, t2 }); };
+  for (const [lv, k] of [[0.7, 'sum1'], [0.4, 'sum2']]) if (!A[k] && e.hp < e.type.hp * lv) { A[k] = true; start('summon', 'order', 40); return; }
+  if (A.cd > 0) A.cd--;
+  if (A.cd <= 0) {
+    const r = Math.random();
+    if (adx < 70 && Math.abs(p.z - e.z) < 12 && r < 0.5) { start('sword', 'draw', 36); return; }
+    if (Math.abs(p.z - e.z) < 10 && r < 0.75 && !A.lastGun) { A.lastGun = true; start('gun', 'gaim', 74); return; }   // 六顆子彈
+    A.lastGun = false;
+    start('hat', 'hat', 22); return;
+  }
+  const tx = p.x - Math.sign(dxp || 1) * 60; let moved = false;
+  if (Math.abs(tx - e.x) > 5) { e.x += Math.sign(tx - e.x) * e.type.spd; moved = true; }
+  if (Math.abs(p.z - e.z) > 3) { e.z += Math.sign(p.z - e.z) * 0.6; moved = true; }
+  e.x = clamp(e.x, G.camX + 20, G.camX + W - 20);
+  e.st = moved ? 'walk' : 'idle'; if (moved) e.walkT = (e.walkT || 0) + 1;
 }
 
 // ---------- 頭目：武舉人 ----------
@@ -780,7 +899,7 @@ function setupStage() {
   STAGE = STAGES[G.stageIdx || 0]; stageLen = STAGE.segs * W; facadeLayout = null; G.volley = []; G.volleyT = 0;
   foes = []; projs = []; items = []; parts = []; pops = []; fx = [];
   props = STAGE.props.map((p, i) => ({ id: i, k: p.k, x: p.x, z: p.z, hp: p.k === 'jar' ? 1 : 2, shake: 0 }));
-  helpers = []; G.camX = 0; G.lockL = 0; G.lockR = 0; G.wave = -1; G.clear = false; G.bossTalked = false; G.drum = null; G.drumAt = 0; G.foe = null; G.foeT = 0; G.talk = null; G.cutin = null;
+  helpers = []; G.mines = []; G.camX = 0; G.lockL = 0; G.lockR = 0; G.wave = -1; G.clear = false; G.bossTalked = false; G.drum = null; G.drumAt = 0; G.foe = null; G.foeT = 0; G.talk = null; G.cutin = null;
   P = newPlayer(PLAYABLE[G.chIdx]);
   P.x = 60;
   nextWave();
@@ -791,8 +910,9 @@ function nextWave() {
   G.lockR = w ? w.lock : stageLen - W;
 }
 function startTalk(key) {
-  const src = TALK[key], pn = src.find(l => !Array.isArray(l));
-  const lines = src.filter(l => Array.isArray(l)).map(([who, s, nm]) => [who === 'P' ? P.cid : who, s, nm]);
+  const src = TALK[key], pn = src.find(l => !Array.isArray(l) && condOk(l.cond));
+  const lines = src.filter(l => Array.isArray(l) && condOk(l[3])).map(([who, s, nm]) => [who === 'P' ? P.cid : who, s, nm]);
+  if (!lines.length) return;
   G.talk = { lines, i: 0, t: 0, key, panel: pn && pn.panel };
 }
 function updateWaves() {
@@ -824,7 +944,7 @@ function updateWaves() {
     if (w.boss) {
       const b = foes.find(e => e.key === w.boss);
       if (b && b.st === 'kneel' && !G.bossTalked) { G.bossTalked = true; startTalk(w.bossTalk || 'wuDown'); return; }
-      if (b && b.key === 'huwan2' && G.bossTalked && b.st === 'kneel') { b.st = 'dead'; b.t2 = 30; sfx('gun'); return; }   // 劇本第 67 場：胡萬被一槍打死
+      if (b && (b.key === 'huwan2' || b.key === 'jiamazi') && G.bossTalked && b.st === 'kneel') { b.st = 'dead'; b.t2 = 30; sfx('gun'); return; }   // 劇本第 67、124 場：被一槍打死
     }
     nextWave(); G.goT = 150;
     if (G.wave < STAGE.waves.length) sfx('go');
@@ -868,6 +988,7 @@ function updatePlay() {
   projs = projs.filter(p => !p.dead);
   updateHelpers();
   tickVolley();
+  tickMines();
   updateItems();
   for (const pr of props) if (pr.shake > 0) pr.shake--;
   for (const f of fx) f.t++;

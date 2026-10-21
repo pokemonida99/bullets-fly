@@ -2,12 +2,17 @@
 'use strict';
 
 // ---------- 版本與更新紀錄（改版時一起更新；標題畫面與桌墊都看得到） ----------
-const VERSION = 'v0.4';
+const VERSION = 'v0.5';
 const CHANGELOG = [
+  ['v0.5', '劇情做到最後：第三關「出城剿匪」（頭目假麻子：地雷、萬民傘擋正面）、小遊戲「打鐵門」、最終關「殺四郎，搶碉樓」（頭目黃四郎：武士長刀、六顆子彈、替身會慢半拍學他的動作）',
+    '結局：普通結局「同去，同去」＋三個隱藏結局（結局收集）',
+    '玩家自己的角色不會在劇情裡死去（六子、老二、老湯）'],
   ['v0.4', '新角色老四：遠距離型，普通攻擊就是開槍；斗笠飛盤去了會回來；後跳射擊；超必殺一槍一個',
     '新角色老五：最耐打、出招霸體；吹哨叫兄弟衝進來助陣、哨音震暈敵人；超必殺總攻',
     '新角色老七：反擊型，按住招式二擺「被動」架勢正面無敵、自動反擊；雙槍連轟；超必殺「我喜歡被動」一段時間無敵',
-    '八位兄弟全部可選；選角台詞用劇本第 80 場「大哥你是瞭解我的……」'],
+    '八位兄弟全部可選；選角台詞用劇本第 80 場「大哥你是瞭解我的……」',
+    '張牧之加強：速度、力量、耐打都提高；怒氣累積快 1.5 倍；連打最後一擊補一發穿透重彈；招式一改成雙槍六連射',
+    '復活與接關：角色從畫面上方跳進來蹲著落地，衝擊波讓畫面上的敵人全部倒下並扣血'],
   ['v0.3.1', '角色名稱改成劇本的稱呼：張牧之、老二、老三、老四、老五、六子、老七、老湯、夫人'],
   ['v0.3', '新第二關「夜襲縣衙」：胡萬帶戴九筒面具的假麻匪夜襲，屋頂有槍手掃射（看地上的紅圈），頭目胡萬',
     '新小遊戲「散銀子」：沿街把麻袋銀子丟進窗戶，丟越多分數越高',
@@ -39,19 +44,19 @@ const HB = (f, box, dmg, o = {}) => Object.assign({ f, box, dmg }, o);
 const loop = (a, b, n, d = 4) => { const s = []; for (let i = 0; i < n; i++) s.push([a, d], [b, d]); return s; };
 
 const CHARS = [
-  { id: 'dage', name: '張牧之', full: '張麻子', title: '平衡型・雙槍', spd: 1.7, hp: 100, pow: 1, jump: 5.4, stat: [3, 3, 3],
+  { id: 'dage', name: '張牧之', full: '張麻子', title: '全能型・雙槍手', spd: 1.85, hp: 115, pow: 1.15, jump: 5.6, stat: [4, 4, 4], meterGain: 1.5,
     line: '讓子彈飛一會兒。', pick: '公平，公平，還是公平！',
-    s1n: '雙槍連射', s2n: '旋身雙槍', supn: '讓子彈飛一會兒',
+    s1n: '雙槍六連射', s2n: '旋身雙槍', supn: '讓子彈飛一會兒',
     moves: {
       c0: { seq: [['c0a', 3], ['c0b', 6], ['c0a', 3]], hits: [HB([3, 7], [4, 54, 28, 14], 5)], vx: [[0, 4, 0.8]] },
       c1: { seq: [['c1a', 3], ['c1b', 6], ['c1a', 4]], hits: [HB([3, 7], [4, 56, 32, 18], 6)], vx: [[0, 4, 0.8]] },
       c2: { seq: [['c2a', 4], ['c2b', 7], ['c2a', 4]], hits: [HB([4, 9], [4, 52, 34, 22], 7)] },
-      c3: { seq: [['c3a', 6], ['c3b', 8], ['c3c', 10]], hits: [HB([6, 12], [2, 56, 32, 24], 10, { kd: 1 })], vx: [[0, 8, 1]] },
+      c3: { seq: [['c3a', 6], ['c3b', 8], ['s1c', 10]], hits: [HB([6, 12], [2, 56, 32, 24], 11, { kd: 1 })], vx: [[0, 8, 1]], ev: { 14: 'finisherShot' } },
       dash: { seq: [['dash0', 6], ['dash1', 14], ['dash0', 4]], hits: [HB([4, 18], [4, 52, 34, 26], 9, { kd: 1 })], vx: [[0, 18, 3.2]] },
       jatk: { seq: [['jatk0', 6], ['jatk1', 34]], hits: [HB([5, 34], [0, 42, 32, 28], 8, { kd: 1 })], air: true },
       knee: { seq: [['c0a', 4], ['c0b', 8]], hits: [HB([4, 8], [4, 56, 26, 20], 4, { grab: 1 })] },
       throw: { seq: [['throw0', 8], ['throw1', 16]], ev: { 8: 'release' }, tdmg: 12 },
-      s1: { seq: [['s1a', 4], ['s1b', 6], ['s1c', 6], ['s1d', 4], ['s1c', 6], ['s1d', 6], ['s1b', 4]], ev: { 10: 'bullet', 22: 'bullet' } },
+      s1: { seq: [['s1a', 3], ['s1b', 4], ['s1c', 4], ['s1d', 4], ['s1c', 4], ['s1d', 4], ['s1c', 4], ['s1d', 4], ['s1b', 4]], ev: { 7: 'bullet', 11: 'bullet', 15: 'bullet', 19: 'bullet', 23: 'bullet2', 27: 'bullet2' } },
       s2: { seq: [['s2a', 4]].concat(loop('s2b', 's2c', 3), [['s2d', 6]]), inv: [0, 26], hits: [HB([4, 28], [-32, 60, 64, 60], 8, { kd: 1, zr: 14 })], cost: 4, ev: { 4: 'gun2', 16: 'gun2' } },
       sup: { seq: [['sp0', 6], ['sp1', 12], ['sp2', 10], ['sp3', 8], ['sp4', 62], ['sp5', 20]], inv: [0, 118], ev: { 0: 'leap', 28: 'bulletsUp', 94: 'bulletRain' } },
     } },
@@ -185,6 +190,9 @@ const FOES = {
   maskr: { name: '假麻匪 槍手', hp: 30, spd: 1.0, dmg: 8, wind: 14, act: 8, rec: 18, reach: 30, box: [4, 58, 30, 22], score: 600, rifle: true },
   huwan: { name: '黃府管家 胡萬', hp: 150, spd: 1.2, dmg: 9, boss: true, score: 3000 },
   huwan2: { base: 'huwan', name: '假麻匪頭目 胡萬', hp: 230, spd: 1.35, dmg: 10, boss: true, score: 6000, fast: true },
+  jiamazi: { name: '假麻子', hp: 260, spd: 1.15, dmg: 11, boss: true, score: 7000 },
+  huang: { name: '南國一霸 黃四郎', hp: 320, spd: 1.2, dmg: 13, boss: true, score: 15000 },
+  tishen: { base: 'huang', name: '替身 楊萬樓', hp: 60, spd: 1.2, dmg: 10, boss: true, score: 2000, decoy: true },
   wu: { name: '團練教頭 武舉人', hp: 320, spd: 1.0, dmg: 14, boss: true, score: 8000, heavy: true },
 };
 
@@ -221,7 +229,30 @@ STAGE1.bgs = STAGE1.segs; STAGE1.segs = 5; STAGE1.sub = '—— 北洋年間　�
 STAGE1.anchors = [['f_gate', 0], ['f_yamen', 470], ['f_noodle', 850], ['f_wall', 1330], ['f_huang', null]]; STAGE1.fillers = ['f_shop1', 'f_shop2', 'f_shop3']; STAGE1.sky = ['sky_day', 'sky_dusk'];
 STAGE1.next = 'story2';
 STAGE2.next = 'story3';
-const STAGES = [STAGE1, STAGE2];
+const STAGE3 = {
+  name: '第三關　出城剿匪', sub: '—— 青石嶺 ——', segs: 5,
+  anchors: [['w_rocks', 0], ['w_bamboo', 420], ['w_rocks', 900], ['w_trees1', 1300], ['w_rocks', null]], fillers: ['w_trees1', 'w_trees2', 'w_bamboo'], sky: ['sky_day'], ground: 'ground_dirt',
+  props: [{ k: 'crate', x: 300, z: 196 }, { k: 'jar', x: 700, z: 160 }, { k: 'crate', x: 1120, z: 200 }, { k: 'jar', x: 1400, z: 162 }],
+  waves: [
+    { lock: 0, talk: 's3start', music: 'stage1', groups: [{ left: 9, foes: [['mask', 'R'], ['maskr', 'R']] }, { left: 1, foes: [['maskR', 'L'], ['maskr', 'R'], ['mask', 'R']] }] },
+    { lock: 384, volley: true, talk: 's3snipe', groups: [{ left: 9, foes: [['mask', 'R'], ['maskB', 'L'], ['maskr', 'R']] }, { left: 1, foes: [['maskR', 'R'], ['maskr', 'L']] }] },
+    { lock: 768, talk: 's3cable', groups: [{ left: 9, foes: [['maskB', 'R'], ['maskR', 'L'], ['maskr', 'R']] }, { left: 1, foes: [['mask', 'R'], ['maskr', 'L'], ['maskB', 'R']] }] },
+    { lock: 1152, groups: [{ left: 9, foes: [['maskr', 'R'], ['maskr', 'L'], ['maskR', 'R']] }, { left: 1, foes: [['maskB', 'L'], ['maskR', 'R'], ['mask', 'R']] }] },
+    { lock: 1536, talk: 's3boss', music: 'boss', boss: 'jiamazi', bossTalk: 's3bossDown', groups: [{ left: 9, foes: [['jiamazi', 'R', 180]] }, { left: 1, hpBelow: 0.5, foes: [['maskr', 'L'], ['mask', 'R']] }] },
+  ],
+};
+const STAGE4 = {
+  name: '最終關　殺四郎，搶碉樓', sub: '—— 黃家碉樓 ——', segs: 4,
+  anchors: [['d_irongate', 0], ['d_tower1', 520], ['d_tower2', 900], ['d_tower1', null]], fillers: ['d_bamboo', 'd_tower2', 'd_bamboo'], sky: ['sky_day', 'sky_dusk'], skyDusk: [200, 900],
+  props: [{ k: 'jar', x: 260, z: 160 }, { k: 'crate', x: 640, z: 198 }, { k: 'jar', x: 900, z: 162 }],
+  waves: [
+    { lock: 0, talk: 's4start', music: 'stage1', groups: [{ left: 9, foes: [['guard', 'R'], ['guardB', 'R'], ['guard', 'L']] }, { left: 1, foes: [['guardR', 'R'], ['maskr', 'R'], ['guard', 'L']] }] },
+    { lock: 384, groups: [{ left: 9, foes: [['guardB', 'R'], ['maskr', 'L'], ['guardR', 'R']] }, { left: 1, foes: [['maskB', 'R'], ['guardR', 'L'], ['maskr', 'R']] }] },
+    { lock: 768, talk: 's4boss', music: 'boss', boss: 'huang', bossTalk: 's4bossDown', groups: [{ left: 9, foes: [['huang', 'R', 182]] }, { left: 1, hpBelow: 0.4, foes: [['guardB', 'L'], ['guardR', 'R']] }] },
+  ],
+};
+STAGE3.next = 'story5'; STAGE4.next = 'storyEnd';
+const STAGES = [STAGE1, STAGE2, STAGE3, STAGE4];
 
 // ---------- 台詞 ----------
 // 說話者：角色 id、'P'＝目前玩家、'' 旁白。台詞照劇本原句（出處場次見 docs/story.md），髒話拿掉
@@ -235,10 +266,19 @@ const TALK = {
   s2start: [{ panel: 'p_raid' }, ['', '房頂之上，胡萬一派，端槍狂轟，門窗俱裂。'], ['', '張牧之抄槍躥起，縱躍出窗。']],   // 65、66
   s2bed: [['', '縣長臥室這廂，床板側翻，滿目槍孔。'], ['', '屋頂還有人在開槍——看地上的紅圈！']],   // 65
   huwan2: [['huwan', '殺雞取卵！'], ['huwan', '一定要在縣長的床上！']],   // 57
+  s3start: [['tang', '恩人，給你看個寶貝。'], ['dage', '茲委任馬邦德為康城縣長，哎，等會兒！'], ['tang', '從來就是康城！'], ['', '突然槍聲四起——'], ['wuge', '大哥！好像有人冒充你，伏擊咱們！'], ['dage', '告訴弟兄們，散開。往山頂上跑。']],   // 98
+  s3snipe: [['', '整個樹林一個敵人都看不見，只有子彈從各處射來。'], ['', '看地上的紅圈！']],   // 98
+  s3cable: [{ panel: 'p_cable', cond: 'dead:erge' }, ['', '只見山谷的高空中拉起一條索道……', '', 'dead:erge'], ['', '南國張麻子在此，錢留下，銀子也留下！', '假麻子', 'dead:erge'], ['dage', '告訴弟兄們，上東邊去！抓著活的，問出他們頭在哪兒！'],
+    ['', '索道上的子彈全打空了——老二自己盪了回來。', '', 'alive:erge']],   // 108、113
+  s3boss: [['', '南國張麻子在此，錢留下，銀子也留下！', '假麻子']],   // 108
+  s3bossDown: [{ panel: 'p_fakemazi' }, ['', '你是張麻子？你臉上怎麼沒有麻子呢？', '假麻子'], ['dage', '這事，誰問誰死。'], ['dage', '劫了幾任縣官？'], ['', '五回！五個縣長全被我給幹掉了。錢我跟黃老爺分了。', '假麻子']],   // 124
+  s4start: [['huang', '我這碉樓，固若金湯，易守難攻。他進不來！'], ['dage', '那你怎麼就真的相信，只有我和師爺，進了你的碉樓呢？']],   // 53
+  s4boss: [['huang', '你不會裝糊塗。'], ['dage', '大哥，我還能改嗎？'], ['huang', '改不了！天生的！']],   // 55
+  s4bossDown: [['huang', '毀於一旦啊！五代家業，毀於一旦啊！']],   // 180
   huwan2Down: [{ panel: 'p_unmask' }, ['dage', '我居然上了你們的當！'], ['dage', '說，誰讓你冒充麻匪？'], ['huwan', '老子就是麻匪！張麻子是我大哥！'], ['dage', '哦，那你是老幾啊？'], ['huwan', '老三。'],
     ['dage', '是你大哥張麻子派你來的，還是你老爺黃四郎派你來的？'], ['huwan', '黃老爺。'], ['dage', '不錯，張麻子！'], ['huwan', '可大哥您臉上沒麻子。'], ['dage', '黃四郎，臉上有四嗎？'], ['huwan', '懂了！'], ['', '砰！']],   // 67
 };
-const NAMES = { siger: '老四', wuge: '老五', qidi: '老七', huang: '黃四郎', huajie: '花姐', hubai: '胡百', huqian: '胡千', dage: '張牧之', erge: '老二', sange: '老三', liuzi: '六子', tang: '老湯', guard: '黃家護院', mask: '假麻匪', huwan: '胡萬', wu: '武舉人', shiye: '師爺', wife: '夫人', soldier: '鐵血十八星陸軍', '': '' };
+const NAMES = { jiamazi: '假麻子', siger: '老四', wuge: '老五', qidi: '老七', huang: '黃四郎', huajie: '花姐', hubai: '胡百', huqian: '胡千', dage: '張牧之', erge: '老二', sange: '老三', liuzi: '六子', tang: '老湯', guard: '黃家護院', mask: '假麻匪', huwan: '胡萬', wu: '武舉人', shiye: '師爺', wife: '夫人', soldier: '鐵血十八星陸軍', '': '' };
 
 // 過場（bg：劇情插圖；lines：[說話者, 台詞, 顯示名稱（可省）]）——台詞照劇本原句，括號內是劇本場次
 const INTRO = [
@@ -277,5 +317,29 @@ const STORY4 = [   // 散銀子之後
   { bg: 'p_situng', lines: [['dage', '那邊領頭的戴的是幾筒看見了嗎？'], ['sange', '四筒。'], ['', '衣服一樣，面具相同，全是四筒，敵我難辨。'], ['', '都是四筒，下不了手啊！', '黃家人'], ['dage', '一、二、三，撤！']] },   // 85、87
   { bg: 'p_fanyi', lines: [['dage', '胡萬，就是麻匪！麻匪，就是胡萬！'], ['huang', '三天之後，一定給縣長一個驚喜。'], ['dage', '湯師爺，你給翻譯翻譯，什麼叫驚喜？'], ['tang', '不用翻譯，就是驚喜啊！'], ['dage', '我就想讓你翻譯翻譯，什麼叫驚喜！'],
     ['huang', '驚喜就是三天之後，我出一百八十萬給你們出城剿匪！'], ['dage', '大哥這是驚喜啊，小弟我願意等你三天。']] },   // 90
-  { bg: 'p_charge', lines: [['', '下一關：出城剿匪。'], ['dage', '槍在手，跟我走！'], ['', '殺四郎！', '老四'], ['', '搶碉樓！', '老五']] },   // 預告（160）
+  { bg: 'p_cloud', lines: [['dage', '我姓張。'], ['tang', '知道！'], ['dage', '叫牧之。'], ['dage', '從講武堂出來，我追隨過松坡將軍，給他做過手槍隊長。'], ['dage', '雲！那片雲，我見過。'], ['tang', '說明你要……東山再起！'], ['dage', '說明……要下雨了。']] },   // 91
+  { bg: 'p_photo', lines: [['huang', '這照片是你嗎？'], ['dage', '是我！那時候我還很瘦！'], ['tang', '這明明是我！我才是馬邦德！'], ['dage', '三舅，這話能跟他說嗎？']] },   // 96
+  { bg: 'p_rally', lines: [['huang', '自宣統皇帝退位以後，鵝城一共來過五十一任縣長。'], ['tang', '大風起兮雲飛揚，安得猛士兮走四方！'], ['tang', '麻匪，任何時候都要剿！不剿不行！'], ['dage', '出發！']] },   // 97
 ];
+const STORY5 = [   // 第三關之後 → 回鵝城 → 打鐵門
+  { bg: 'p_tangdie', cond: 'dead:tang', lines: [['tang', '我是個大騙子。'], ['dage', '我知道。'], ['tang', '你到底是不是張麻子？'], ['dage', '放心，我就是張麻子。'], ['tang', '聽我的，千萬別回鵝城，你呀，弄不過黃四郎，帶上銀子，走吧。']] },   // 125
+  { bg: 'p_burn', cond: 'alive:tang', lines: [['', '馬車在山谷裡炸飛了，老湯卻從銀子堆裡爬了出來。'], ['tang', '騙子最怕受騙……這回騙我的是地雷。'], ['dage', '命大！']] },
+  { bg: 'p_burn', lines: [['dage', '我弄不清楚，你到底是老湯，還是馬邦德。', '', 'dead:tang'], ['dage', '但是你沒了，張麻子也沒了，真的也沒了，假的也沒了。', '', 'dead:tang'], ['dage', '弟兄們，回鵝城！']] },   // 126
+  { bg: 'p_return', lines: [['huang', '鵝城父老，恭迎縣長凱旋。'], ['dage', '湯師爺請你吃飯。', '', 'dead:tang'], ['huang', '他人呢？', '', 'dead:tang'], ['dage', '本人張牧之，以訛傳訛被傳成了張麻子。'], ['dage', '三天之內，縣長馬邦德法辦通匪惡霸黃四郎。'], ['huang', '天馬行空！童言無忌！']] },   // 130
+  { bg: 'p_charge', lines: [['dage', '槍在手，跟我走！'], ['', '殺四郎！', '老四'], ['', '搶碉樓！', '老五'], ['siger', '大哥，大哥你看，跟我們來的只有它們！'], ['dage', '明白了！誰贏，他們幫誰！'], ['dage', '打！就打鐵門！']] },   // 160、162
+  { bg: 'p_gate', lines: [['dage', '知道驚歎號吧？'], ['dage', '在門上打出個驚歎號來！']] },   // 166
+];
+const STORY6 = [   // 打鐵門之後 → 最終關
+  { bg: 'p_crowd', lines: [['wu', '黃四郎被抓了！黃四郎被抓了！'], ['', '黃四郎被抓了！', '百姓'], ['dage', '去碉樓！拿回你們自己的東西！'], ['wu', '黃天已死！'], ['', '蒼天當立！', '百姓'], ['wu', '錢在碉樓！'], ['', '分了大吉！', '百姓']] },   // 171、174
+  { bg: 'p_charge2', lines: [['', '鐵門如紙，人潮破鐵而入。'], ['', '比火車快，比狼群野。']] },   // 177
+];
+const STORYEND = [   // 打倒黃四郎之後
+  { bg: 'p_smoke', lines: [['huang', '你，是一開始就想到了今天這步嗎？'], ['dage', '沒有。走一步，看一步。'], ['dage', '你說是錢對我重要？還是你對我重要？'], ['huang', '還是我重要！'], ['dage', '你和錢對我都不重要。'], ['huang', '那誰重要？'], ['dage', '沒有你，對我很重要。']] },   // 180
+  { bg: 'p_explode', lines: [['huang', '張麻子——'], ['', '轟——碉樓炸成了龐大的煙塵，宛如國畫中盛開的花。'], ['dage', '%MOURN%，你們看到了吧。']] },   // 181
+  { bg: 'p_bikes', lines: [['sange', '大哥，我們準備去上海了。'], ['huajie', '今天不是把錢都發光了嗎？還有比今天更過癮的？'], ['dage', '別忘了下回跟我打個招呼啊！'], ['', '保重！大哥再見！', '眾兄弟']] },   // 181
+  { bg: 'ending', lines: [['', '上海就是浦東，浦東就是上海！', '老三'], ['', '馬拉火車呼嘯而過。張牧之輕抖韁繩，順著火車的方向而去。']] },   // 184
+  { bg: 'h_ryuyou', cond: 'alive:liuzi', end: 'ryuyou', lines: [['dage', '這單活幹完了，爹掙了錢。我送你去留洋。'], ['dage', '東洋三年，西洋三年，南洋三年。'], ['liuzi', '北洋，北洋三年。'], ['dage', '傻孩子……去吧！']] },   // 40
+  { bg: 'bg1', cond: 'alive:tang', end: 'kangcheng', lines: [['tang', '茲委任馬邦德為康城縣長！'], ['tang', '從來就是康城！'], ['tang', '我才真有六個。軍閥混戰，買四送二。']] },   // 98、125
+  { bg: 'h_whiteman', cond: 'flag:question', end: 'yanpin', lines: [['', '火車車尾，站著一個穿白西裝、戴禮帽的人……'], ['huang', '贗品是個好東西！'], ['huang', '走出一個恍如隔世。']] },   // 30
+];
+const ENDINGS = { normal: ['普通結局', '同去，同去'], ryuyou: ['隱藏結局', '留洋（用六子破關）'], kangcheng: ['隱藏結局', '康城縣長（用老湯破關）'], yanpin: ['隱藏結局', '贗品（鐵門打出問號）'] };

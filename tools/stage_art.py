@@ -6,9 +6,9 @@ from PIL import Image, ImageDraw
 
 W, H = 384, 216
 BGS = ['bg1', 'bg2', 'bg3', 'bg4', 'bg5', 'title', 'ending', 'r_far']
-PANELS = ['p_grave', 'p_cards', 'p_invite', 'p_banquet', 'p_toast', 'p_plot', 'p_raid', 'p_unmask', 'p_mourn', 'p_kidnap', 'p_silver', 'p_huajie', 'p_situng', 'p_fanyi', 'p_ridge', 'p_hotpot', 'p_scope', 'p_split', 'p_axes', 'p_flip', 'p_clock', 'p_caravan', 'p_gate', 'p_drum', 'p_liangfen', 'p_wu', 'p_gongping', 'p_stand', 'p_charge']
+PANELS = ['p_cloud', 'p_photo', 'p_rally', 'p_cable', 'p_fakemazi', 'p_tangdie', 'p_burn', 'p_return', 'p_gate', 'p_crowd', 'p_charge2', 'p_smoke', 'p_explode', 'p_bikes', 'h_ryuyou', 'h_kangcheng', 'h_whiteman', 'p_grave', 'p_cards', 'p_invite', 'p_banquet', 'p_toast', 'p_plot', 'p_raid', 'p_unmask', 'p_mourn', 'p_kidnap', 'p_silver', 'p_huajie', 'p_situng', 'p_fanyi', 'p_ridge', 'p_hotpot', 'p_scope', 'p_split', 'p_axes', 'p_flip', 'p_clock', 'p_caravan', 'p_gate', 'p_drum', 'p_liangfen', 'p_wu', 'p_gongping', 'p_stand', 'p_charge']
 import os
-PORTRAIT_IDS = ['dage', 'erge', 'sange', 'siger', 'wuge', 'qidi', 'liuzi', 'tang', 'huwan', 'wu', 'guard', 'mask', 'soldier', 'huang', 'huajie']
+PORTRAIT_IDS = ['jiamazi', 'dage', 'erge', 'sange', 'siger', 'wuge', 'qidi', 'liuzi', 'tang', 'huwan', 'wu', 'guard', 'mask', 'soldier', 'huang', 'huajie']
 
 
 def url(im, fmt='PNG'):
@@ -120,7 +120,7 @@ def train():
     return sm
 
 
-FACADE_H = {'g_hall': 128, 'g_corridor': 96, 'g_rooms': 124, 'g_moon': 92, 'g_gate': 120, 'f_gate': 138, 'f_shop1': 118, 'f_yamen': 108, 'f_shop2': 132, 'f_noodle': 100, 'f_shop3': 124, 'f_wall': 84, 'f_huang': 140}
+FACADE_H = {'w_trees1': 132, 'w_trees2': 124, 'w_rocks': 92, 'w_bamboo': 138, 'd_tower1': 150, 'd_tower2': 144, 'd_bamboo': 132, 'd_irongate': 120, 'g_hall': 128, 'g_corridor': 96, 'g_rooms': 124, 'g_moon': 92, 'g_gate': 120, 'f_gate': 138, 'f_shop1': 118, 'f_yamen': 108, 'f_shop2': 132, 'f_noodle': 100, 'f_shop3': 124, 'f_wall': 84, 'f_huang': 140}
 
 
 def facade(key):   # 建築立面：去洋紅底、裁到建築本身、縮到指定高度
@@ -134,8 +134,8 @@ def sky(key):
     return im.resize((960, round(im.height * 960 / im.width)), Image.LANCZOS).quantize(colors=128, method=Image.Quantize.MAXCOVERAGE, dither=Image.Dither.NONE).convert('RGB')
 
 
-def ground():
-    im = Image.open('work/art/ground.png').convert('RGB')
+def ground(key='ground'):
+    im = Image.open(f'work/art/{key}.png').convert('RGB')
     sm = im.resize((1300, round(im.height * 1300 / im.width)), Image.LANCZOS)
     return sm.crop((0, 0, 1300, 80)).quantize(colors=96, method=Image.Quantize.MAXCOVERAGE, dither=Image.Dither.NONE).convert('RGB')
 
@@ -144,6 +144,8 @@ bgs = {k: bg(k) for k in BGS if os.path.exists(f'work/art/{k}.png')}
 bgs.update({k: facade(k) for k in FACADE_H if os.path.exists(f'work/art/{k}.png')})
 bgs.update({k: sky(k) for k in ('sky_day', 'sky_dusk', 'sky_night') if os.path.exists(f'work/art/{k}.png')})
 if os.path.exists('work/art/ground.png'): bgs['ground'] = ground()
+if os.path.exists('work/art/ground_dirt.png'): bgs['ground_dirt'] = ground('ground_dirt')
+if os.path.exists('work/art/ironwall.png'): bgs['ironwall'] = Image.open('work/art/ironwall.png').convert('RGB').resize((W, H), Image.LANCZOS).quantize(colors=96, method=Image.Quantize.MAXCOVERAGE, dither=Image.Dither.NONE).convert('RGB')
 bgs.update({k: panel(k) for k in PANELS if os.path.exists(f'work/art/{k}.png')})
 if os.path.exists('work/art/r_near.png'): bgs['r_near'] = near()
 if os.path.exists('work/art/r_train.png'): bgs['r_train'] = train()

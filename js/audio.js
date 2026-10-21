@@ -78,6 +78,7 @@ const Audio2 = (() => {
     gong() { tone('triangle', 147, 140, 1.6, 0.5); tone('triangle', 294, 280, 1.2, 0.22); tone('sine', 441, 420, 0.8, 0.1); noise(0.9, 0.35, 'bandpass', 900, 300, sfxBus, undefined, 0.6); },
     jump() { tone('square', 220, 520, 0.12, 0.1); },
     land() { noise(0.08, 0.3, 'lowpass', 900, 200); },
+    whoosh() { noise(0.4, 0.5, 'bandpass', 300, 3000, sfxBus, undefined, 1.2); },
     hoof() { const t = ac.currentTime; noise(0.04, 0.16, 'lowpass', 700, 300, sfxBus, t); noise(0.04, 0.12, 'lowpass', 700, 300, sfxBus, t + 0.09); },
     fall() { tone('sine', 110, 40, 0.3, 0.9); noise(0.25, 0.6, 'lowpass', 1500, 120); },
     grab() { noise(0.06, 0.4, 'lowpass', 1200, 400); tone('sine', 200, 150, 0.06, 0.4); },

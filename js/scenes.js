@@ -21,7 +21,7 @@ function layoutFacades() {
   L.sort((a, b) => (a.anchor ? 1 : 0) - (b.anchor ? 1 : 0));
   return (facadeLayout = L);
 }
-function dusk() { return STAGE.sky && STAGE.sky.length > 1 ? clamp((G.camX - 820) / 700, 0, 1) : 0; }
+function dusk() { const [a, b] = STAGE.skyDusk || [820, 1520]; return STAGE.sky && STAGE.sky.length > 1 ? clamp((G.camX - a) / (b - a), 0, 1) : 0; }
 function drawStageLayers() {
   const L = layoutFacades(); if (!L) return false;
   const cx = G.camX, k = dusk();
@@ -37,8 +37,9 @@ function drawStageLayers() {
     else ctx.drawImage(im, x, y);
     signs2(f.k, x, y, im);
   }
-  if (IMG.bg.ground) {
-    tileMirror(IMG.bg.ground, cx, GROUND_Y - 4);
+  const gimg = IMG.bg[STAGE.ground || 'ground'] || IMG.bg.ground;
+  if (gimg) {
+    tileMirror(gimg, cx, GROUND_Y - 4);
     if (STAGE.night) { ctx.save(); ctx.globalCompositeOperation = 'multiply'; ctx.fillStyle = 'rgb(90,105,170)'; ctx.fillRect(0, GROUND_Y - 4, W, H); ctx.restore(); }
   }
   // 越往前走越接近黃昏：建築與地面染上夕陽色
@@ -50,7 +51,7 @@ function drawStageLayers() {
   return true;
 }
 // 立面上的匾額字（GPT 畫的匾額是空白的；位置是相對立面圖的比例）
-const SIGN_AT = { f_gate: ['鵝城', 0.5, 0.56], f_yamen: ['縣衙', 0.5, 0.38], f_huang: ['黃府', 0.5, 0.55], g_hall: ['明鏡高懸', 0.5, 0.3], g_gate: ['縣衙', 0.5, 0.33] };
+const SIGN_AT = { d_irongate: ['黃府', 0.5, 0.42], f_gate: ['鵝城', 0.5, 0.56], f_yamen: ['縣衙', 0.5, 0.38], f_huang: ['黃府', 0.5, 0.55], g_hall: ['明鏡高懸', 0.5, 0.3], g_gate: ['縣衙', 0.5, 0.33] };
 const SIGN_V = { f_noodle: ['涼粉', 0.86, 0.30] };
 function signs2(k, x, y, im) {
   const a = SIGN_AT[k]; if (a) text(a[0], x + im.width * a[1], y + im.height * a[2] - 6, { c: k === 'f_huang' ? '#f0c040' : '#3a1a08', a: 'c' });
@@ -153,6 +154,7 @@ function drawProj(pr) {
     case 'knife': { ctx.save(); ctx.translate(Math.round(sx), Math.round(sy)); if (pr.vx < 0) ctx.scale(-1, 1); ctx.drawImage(ICON.knife, -6, -2); ctx.restore(); break; }
     case 'coin': { const w = Math.max(1, Math.abs(Math.cos(pr.t / 3)) * 8); shadow(sx, pr.z, pr.h, 6); ctx.drawImage(ICON.coin, Math.round(sx - w / 2), Math.round(sy - 4), Math.round(w), 8); break; }
     case 'hat': { const ic = ICON.hat; shadow(sx, pr.z, pr.h, 18); if (ic) { const w = ic.width * (0.6 + 0.4 * Math.abs(Math.cos(pr.t / 3))); ctx.drawImage(ic, Math.round(sx - w / 2), Math.round(sy - ic.height / 2), Math.round(w), ic.height); } else { px(sx - 9, sy - 2, 18, 4, '#c8a050'); px(sx - 4, sy - 5, 8, 3, '#e0c070'); } break; }
+    case 'hhat': { shadow(sx, pr.z, pr.h, 14); const w = 16 * (0.5 + 0.5 * Math.abs(Math.cos(pr.t / 3))); px(sx - w / 2, sy - 2, w, 3, '#141414'); px(sx - w / 4, sy - 7, w / 2, 5, '#1e1e1e'); px(sx - w / 4, sy - 3, w / 2, 1, '#6a1a1a'); break; }
     case 'stone': shadow(sx, pr.z, pr.h, 20); ctx.drawImage(ICON.stone, Math.round(sx - 9), Math.round(sy - 15), 18, 15); break;
     case 'sound': {
       const r = 8 + pr.t * 1.3, d = Math.sign(pr.vx);
@@ -184,6 +186,13 @@ function drawDrum() {
   ctx.restore();
 }
 
+function drawMines() {   // 假麻子的地雷：圓盤＋閃紅燈
+  for (const m of G.mines || []) {
+    const sx = m.x - G.camX;
+    px(sx - 6, m.z - 3, 12, 4, '#3a3a30'); px(sx - 5, m.z - 4, 10, 1, '#6a6a58'); px(sx - 4, m.z - 1, 8, 1, '#202018');
+    if ((m.t >> (m.t > 480 ? 2 : 4)) & 1) px(sx - 1, m.z - 5, 2, 2, '#ff3030');
+  }
+}
 function drawVolley() {
   for (const v of G.volley || []) {
     if (v.t < 0) continue;
@@ -207,6 +216,7 @@ function drawFx() {
       ctx.strokeStyle = '#ff3030'; ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(cx2, cy2, r, 0, Math.PI * 2); ctx.stroke();
       px(cx2 - r - 3, cy2, r * 2 + 6, 1, '#ff3030'); px(cx2, cy2 - r - 3, 1, r * 2 + 6, '#ff3030');
     } else if (f.kind === 'ring') {
+      if (f.t < 0) continue;
       const r = f.t * 3; ctx.strokeStyle = `rgba(255,230,180,${1 - f.t / 30})`; ctx.lineWidth = 2;
       ctx.beginPath(); ctx.ellipse(f.x - G.camX, f.z, r * 1.6, r * 0.45, 0, 0, Math.PI * 2); ctx.stroke();
     }
@@ -372,7 +382,7 @@ SCENES.select = {
   enter() { Audio2.play('select'); this.cur = CHARS.indexOf(PLAYABLE[G.chIdx]); this.done = 0; markMat(this.cur); },
   update() {
     const I = Input.pressed;
-    if (this.done) { if (++this.done > 100) { G.chIdx = PLAYABLE.indexOf(CHARS[this.cur]); G.score = 0; G.attract = false; go('intro'); } return; }
+    if (this.done) { if (++this.done > 100) { G.chIdx = PLAYABLE.indexOf(CHARS[this.cur]); G.score = 0; G.flags = {}; G.attract = false; go('intro'); } return; }
     let c = this.cur;
     if (I.left) c = (c + 7) % 8; if (I.right) c = (c + 1) % 8;
     if (I.up || I.down) c = (c + 4) % 8;
@@ -433,10 +443,21 @@ SCENES.select = {
   },
 };
 // 過場（開場、結局）：一頁一頁的背景＋台詞
-const liuziAlive = () => PLAYABLE[G.chIdx] && PLAYABLE[G.chIdx].id === 'liuzi';
-function storyPages(pages) {   // 依六子生死過濾：cond 'dead'／'alive'
-  const ok = c => !c || (c === 'alive') === liuziAlive();
-  return pages.filter(pg => ok(pg.cond)).map(pg => Object.assign({}, pg, { lines: pg.lines.filter(l => ok(l[3])) })).filter(pg => pg.lines.length);
+// 劇情分支：玩家自己的角色不會死（六子、老二、老湯）；flag:question＝鐵門打出問號
+const playerId = () => PLAYABLE[G.chIdx] && PLAYABLE[G.chIdx].id;
+const liuziAlive = () => playerId() === 'liuzi';
+function condOk(c) {
+  if (!c) return true;
+  if (c === 'dead') c = 'dead:liuzi'; if (c === 'alive') c = 'alive:liuzi';
+  const [k, v] = c.split(':');
+  if (k === 'flag') return !!(G.flags && G.flags[v]);
+  return (k === 'alive') === (playerId() === v);
+}
+function mournText() {   // 第 181 場「老二，老六，師爺，夫人」：玩家自己扮演的人不在名單裡
+  return [['erge', '老二'], ['liuzi', '老六'], ['tang', '師爺']].filter(([id]) => playerId() !== id).map(([, n]) => n).concat(['夫人']).join('，');
+}
+function storyPages(pages) {
+  return pages.filter(pg => condOk(pg.cond)).map(pg => Object.assign({}, pg, { lines: pg.lines.filter(l => condOk(l[3])).map(l => l[1].includes('%MOURN%') ? [l[0], l[1].replace('%MOURN%', mournText()), l[2]] : l) })).filter(pg => pg.lines.length);
 }
 function storyScene(pagesFn, onEnd, music) {
   return {
@@ -492,6 +513,7 @@ SCENES.play = {
     if (G.shake) ctx.translate(Math.round(rnd(-G.shake, G.shake) / 2), Math.round(rnd(-G.shake, G.shake) / 2));
     drawStageBg();
     drawVolley();
+    drawMines();
     drawWorld();
     ctx.save(); ctx.translate(-G.camX, 0);
     // dust 用世界座標
@@ -551,7 +573,7 @@ SCENES.continue = {
   update() {
     if (++this.t % 60 === 0) { this.n--; Audio2.sfx('tick'); if (this.n < 0) { Store.set('hi', G.hi); go('title'); return; } }
     if ((Input.pressed.p || Input.pressed.start) && this.t > 20) {
-      P.lives = 2; P.hp = P.maxhp; P.st = 'idle'; P.inv = 150; P.meter = 100; G.score = 0;
+      P.lives = 2; P.hp = P.maxhp; P.meter = 100; G.score = 0; if (G.resume !== 'ride') dropIn(P); else { P.st = 'idle'; P.inv = 150; }
       Audio2.sfx('decide'); if (G.resume === 'ride') Audio2.play('stage1'); else Audio2.play(STAGE.waves[Math.min(G.wave, STAGE.waves.length - 1)] && STAGE.waves[Math.min(G.wave, STAGE.waves.length - 1)].music || 'stage1');
       G.scene = G.resume || 'play'; G.st = 0; G.resume = null;
     }
@@ -568,23 +590,35 @@ SCENES.continue = {
 SCENES.story2 = storyScene(() => OUTRO, () => { G.stageIdx = 1; go('stagein'); }, 'title');
 SCENES.outro = SCENES.story2;
 SCENES.story3 = storyScene(() => STORY3, () => go('bonusin'), 'title');
-SCENES.story4 = storyScene(() => STORY4, () => go('ending'), 'ending');
+SCENES.story4 = storyScene(() => STORY4, () => { G.stageIdx = 2; go('stagein'); }, 'title');
+SCENES.story5 = storyScene(() => STORY5, () => go('gatein'), 'title');
+SCENES.story6 = storyScene(() => STORY6, () => { G.stageIdx = 3; go('stagein'); }, 'title');
+SCENES.storyEnd = storyScene(() => STORYEND, () => go('ending'), 'ending');
 SCENES.ending = {
-  enter() { Store.set('hi', G.hi); },
+  enter() {
+    Store.set('hi', G.hi);
+    const id = playerId(), got = ['normal'];
+    if (id === 'liuzi') got.push('ryuyou');
+    if (id === 'tang') got.push('kangcheng');
+    if (G.flags && G.flags.question) got.push('yanpin');
+    this.got = got;
+    const all = new Set(Store.get('endings', [])); got.forEach(g => all.add(g)); Store.set('endings', [...all]);
+    this.all = all;
+  },
   update() { if (G.st > 90 && (Input.pressed.p || Input.pressed.start)) go('title'); },
   draw() {
     if (IMG.bg.ending) ctx.drawImage(IMG.bg.ending, 0, 0);
-    ctx.fillStyle = 'rgba(0,0,0,.55)'; ctx.fillRect(0, 0, W, H);
-    const k = Math.min(1, G.st / 40);
-    ctx.globalAlpha = k;
-    text('試玩版到此結束', W / 2, 24, { s: 2, c: '#fff', a: 'c', o: '#300', grad: ['#ffffff', '#ffb020'] });
-    text('SCORE  ' + String(G.score).padStart(7, '0'), W / 2, 64, { c: '#ffd040', a: 'c', o: '#000' });
-    text('HI  ' + String(G.hi).padStart(7, '0'), W / 2, 80, { c: '#c8c8d0', a: 'c', o: '#000' });
-    text('正式版預告', W / 2, 110, { c: '#ff8070', a: 'c', o: '#000' });
-    text('出城剿匪・假麻子・碉樓決戰黃四郎', W / 2, 126, { c: '#ffffff', a: 'c', o: '#000' });
-    text('老四、老五、老七登場', W / 2, 142, { c: '#ffffff', a: 'c', o: '#000' });
+    ctx.fillStyle = 'rgba(0,0,0,.6)'; ctx.fillRect(0, 0, W, H);
+    ctx.globalAlpha = Math.min(1, G.st / 40);
+    text('全劇終', W / 2, 16, { s: 2, c: '#fff', a: 'c', o: '#300', grad: ['#ffffff', '#ffb020'] });
+    text('SCORE  ' + String(G.score).padStart(7, '0') + '　　HI  ' + String(G.hi).padStart(7, '0'), W / 2, 50, { c: '#ffd040', a: 'c', o: '#000' });
+    text('這次達成', W / 2, 72, { c: '#ff8070', a: 'c', o: '#000' });
+    this.got.forEach((k, i) => text(ENDINGS[k][0] + '「' + ENDINGS[k][1].split('（')[0] + '」', W / 2, 88 + i * 14, { c: '#ffffff', a: 'c', o: '#000' }));
+    const y0 = 104 + this.got.length * 14;
+    text('結局收集　' + this.all.size + '／' + Object.keys(ENDINGS).length, W / 2, y0, { c: '#ff8070', a: 'c', o: '#000' });
+    Object.keys(ENDINGS).forEach((k, i) => text(this.all.has(k) ? ENDINGS[k][1] : '？？？', 60 + (i % 2) * 150, y0 + 16 + (i >> 1) * 14, { c: this.all.has(k) ? '#e8d8b0' : '#808088', o: '#000' }));
     ctx.globalAlpha = 1;
-    if (G.st > 90 && (G.t >> 5) & 1) text('THANK YOU FOR PLAYING', W / 2, 176, { c: '#ffd040', a: 'c', o: '#000' });
+    if (G.st > 90 && (G.t >> 5) & 1) text('THANK YOU FOR PLAYING', W / 2, H - 30, { c: '#ffd040', a: 'c', o: '#000' });
     text('同人非官方作品　改編自電影《讓子彈飛》', W / 2, H - 14, { c: '#a0a0a8', a: 'c', o: '#000' });
   },
 };
