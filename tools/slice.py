@@ -93,6 +93,32 @@ def grid_comps(fg, names, step=4, cols=4, rows=2):
     return comps
 
 
+def cell_comps(fg, step=4, cols=4, rows=2):
+    # 備用切法：先找所有連在一起的塊，再依「中心點落在哪一格」分組——跨過格線的姿勢（例如躺平）不會被切斷
+    w, h = fg.size
+    sm = fg.resize((w // step, h // step), Image.BOX).point(lambda v: 255 if v > 20 else 0)
+    sw, sh = sm.size; px = sm.load(); seen = bytearray(sw * sh); cells = {}
+    for y in range(sh):
+        for x in range(sw):
+            if px[x, y] and not seen[y * sw + x]:
+                st = [(x, y)]; seen[y * sw + x] = 1; pts = []
+                while st:
+                    cx, cy = st.pop(); pts.append((cx, cy))
+                    for nx, ny in ((cx + 1, cy), (cx - 1, cy), (cx, cy + 1), (cx, cy - 1)):
+                        if 0 <= nx < sw and 0 <= ny < sh and px[nx, ny] and not seen[ny * sw + nx]:
+                            seen[ny * sw + nx] = 1; st.append((nx, ny))
+                if len(pts) < 4: continue
+                mx = sum(p[0] for p in pts) / len(pts); my = sum(p[1] for p in pts) / len(pts)
+                key = (min(rows - 1, int(my * rows / sh)), min(cols - 1, int(mx * cols / sw)))
+                cells.setdefault(key, []).extend(pts)
+    comps = []
+    for (r, c) in sorted(cells):
+        pts = cells[(r, c)]; xs = [p[0] for p in pts]; ys = [p[1] for p in pts]
+        comps.append({'n': len(pts), 'box': (min(xs) * step, min(ys) * step, (max(xs) + 1) * step, (max(ys) + 1) * step),
+                      'pts': set(pts), 'cx': sum(xs) / len(xs) * step, 'cy': sum(ys) / len(ys) * step})
+    return comps
+
+
 def order(comps):
     ys = sorted(c['cy'] for c in comps)
     mid = (ys[0] + ys[-1]) / 2
@@ -121,6 +147,8 @@ def cut(im, mask, c, step):
     return fr.crop(bb) if bb else fr
 
 
+# 這些格子只留本體：畫面上的道具遊戲會另外畫成飛道具（斗笠、銀元、禮帽），或是鄰格的槍口火光切了進來
+STRICT = {('siger', 's1c'), ('tang', 's1c'), ('tang', 'sp3'), ('tang', 'sp4'), ('huang', 'hat'), ('erge', 's1d'), ('erge', 'sp3'), ('qidi', 'grab'), ('dage', 's2a')}
 KEEP_LARGEST = {'rjump', 'rhurt', 'ride0', 'ride1', 'ride2', 'ride3', 'ratk0', 'ratk1'}   # 騎馬格：去掉 GPT 順手畫的障礙物、碎片
 
 
@@ -134,6 +162,34 @@ def keep_largest(fr):
     for (sx, sy) in comps[0]['pts']: p[sx, sy] = 255
     sm = sm.filter(ImageFilter.MaxFilter(3)).resize(((w // step + 2) * step, (h // step + 2) * step), Image.NEAREST).crop((0, 0, w, h))
     out = fr.copy(); out.putalpha(ImageChops.multiply(a, sm))
+    bb = out.getbbox(); return out.crop(bb) if bb else out
+
+
+def clean(sm, gap=5):
+    # 只留本體＋貼著本體的部分（槍口火光、聲波、煙）；去掉跟本體分開的碎片
+    # （格子切法切進來的鄰格碎塊、GPT 畫進格子裡的障礙物、丟出去的道具——遊戲另外畫飛道具）
+    a = sm.getchannel('A'); w, h = a.size; px = a.load(); seen = set(); cs = []
+    for y in range(h):
+        for x in range(w):
+            if px[x, y] and (x, y) not in seen:
+                st = [(x, y)]; seen.add((x, y)); pts = []
+                while st:
+                    cx, cy = st.pop(); pts.append((cx, cy))
+                    for dx in (-1, 0, 1):
+                        for dy in (-1, 0, 1):
+                            nx, ny = cx + dx, cy + dy
+                            if 0 <= nx < w and 0 <= ny < h and px[nx, ny] and (nx, ny) not in seen: seen.add((nx, ny)); st.append((nx, ny))
+                cs.append(pts)
+    if len(cs) <= 1: return sm
+    cs.sort(key=len, reverse=True)
+    main = Image.new('L', (w, h), 0); mp = main.load()
+    for (x, y) in cs[0]: mp[x, y] = 255
+    near = main.filter(ImageFilter.MaxFilter(gap * 2 + 1)).load()
+    keep = main.copy(); kp = keep.load()
+    for c in cs[1:]:
+        if any(near[x, y] for (x, y) in c[::3]):
+            for (x, y) in c: kp[x, y] = 255
+    out = sm.copy(); out.putalpha(ImageChops.multiply(a, keep))
     bb = out.getbbox(); return out.crop(bb) if bb else out
 
 
@@ -175,7 +231,9 @@ def main():
             comps, step = components(ImageChops.invert(bg_mask_loose(im)))
             comps = order(comps)
             if len(comps) != len(names):
-                print(f'   {cid}_{sh}: 自動切格得到 {len(comps)} 格，改用 4×2 格子切'); comps = grid_comps(ImageChops.invert(mask), names)
+                comps = cell_comps(ImageChops.invert(mask))
+                if len(comps) != len(names): comps = grid_comps(ImageChops.invert(mask), names)
+                print(f'   {cid}_{sh}: 自動切格得到其他數量，改用依格分組（{len(comps)} 格）')
             fix = ORDER_FIX.get(f'{cid}_{sh}')
             if fix: comps = [comps[i] for i in fix]
             if len(comps) != len(names):
@@ -188,7 +246,9 @@ def main():
         sr = RIDE_H / raw['ride0'].height if 'ride0' in raw else s
         frames = {}
         for n, fr in raw.items():
-            sm = shrink(fr, sr if n.startswith('r') and n in HERO['R'] else s)
+            rideF = n.startswith('r') and n in HERO['R']
+            strict = rideF or (cid, n) in STRICT
+            sm = clean(shrink(fr, sr if rideF else s), 1 if strict else 5)
             frames[n] = (sm, anchor_x(sm, n in AIR or n in AIR_BY.get(cid, ())))
         # 打包成一條橫向圖
         W = sum(f.width + 2 for f, _ in frames.values()); H = max(f.height for f, _ in frames.values())

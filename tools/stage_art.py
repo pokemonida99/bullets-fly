@@ -50,6 +50,9 @@ def portrait(cid, sizes=(40, 96)):
     bust = rgba.crop((x0, 0, x1, im.height)); bust = bust.crop(bust.getbbox())
     side = max(bust.width, bust.height)
     sq = Image.new('RGBA', (side, side), (0, 0, 0, 0)); sq.paste(bust, ((side - bust.width) // 2, side - bust.height))
+    # 去掉跟半身像分開的小碎點
+    import importlib.util
+    spec = importlib.util.spec_from_file_location('sl', 'tools/slice_clean.py'); sl = importlib.util.module_from_spec(spec); spec.loader.exec_module(sl)
     out = []
     for s in sizes:
         sm = sq.resize((s, s), Image.LANCZOS); p = sm.load()
@@ -57,7 +60,8 @@ def portrait(cid, sizes=(40, 96)):
             for x in range(s):
                 r, g, b, al = p[x, y]
                 p[x, y] = (r, g, b, 255) if al > 110 else (0, 0, 0, 0)
-        out.append(sm)
+        c = sl.clean(sm, 1); full = Image.new('RGBA', (s, s), (0, 0, 0, 0)); bb = sm.getchannel('A').getbbox() and sl.bbox_of(sm, c)
+        full.paste(c, bb[:2] if bb else (0, 0)); out.append(full)
     return out
 
 

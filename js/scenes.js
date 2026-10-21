@@ -382,7 +382,7 @@ SCENES.select = {
   enter() { Audio2.play('select'); this.cur = CHARS.indexOf(PLAYABLE[G.chIdx]); this.done = 0; markMat(this.cur); },
   update() {
     const I = Input.pressed;
-    if (this.done) { if (++this.done > 100) { G.chIdx = PLAYABLE.indexOf(CHARS[this.cur]); G.score = 0; G.flags = {}; G.attract = false; go('intro'); } return; }
+    if (this.done) { if (++this.done > 100) { G.chIdx = PLAYABLE.indexOf(CHARS[this.cur]); G.score = 0; G.flags = {}; G.attract = false; go('chapter'); } return; }
     let c = this.cur;
     if (I.left) c = (c + 7) % 8; if (I.right) c = (c + 1) % 8;
     if (I.up || I.down) c = (c + 4) % 8;
@@ -491,6 +491,51 @@ function storyScene(pagesFn, onEnd, music) {
     },
   };
 }
+// ---------- 選擇章節 ----------
+const chapterCleared = () => new Set(Store.get('cleared', []));
+const chapterOpen = i => !CHAPTER_LOCK || i === 0 || chapterCleared().has(i - 1) || chapterCleared().has(i);
+function markChapter(scene) {   // 走到下一章的開頭＝上一章打過了；看到結局＝最後一章打過了
+  if (G.attract) return;
+  if (G.fromMenu) { G.fromMenu = false; return; }   // 從選單直接跳進來的不算打過上一章
+  const k = scene === 'ending' ? CHAPTERS.length : CHAPTERS.findIndex(c => c.start === scene);
+  if (k > 0) { const c = chapterCleared(); c.add(k - 1); Store.set('cleared', [...c]); }
+}
+SCENES.chapter = {
+  enter() { this.cur = 0; this.shake = 0; Audio2.play('select'); },
+  update() {
+    const I = Input.pressed, n = CHAPTERS.length;
+    if (I.up) { this.cur = (this.cur + n - 1) % n; Audio2.sfx('cursor'); }
+    if (I.down) { this.cur = (this.cur + 1) % n; Audio2.sfx('cursor'); }
+    if ((I.p || I.start) && G.st > 10) {
+      if (!chapterOpen(this.cur)) { Audio2.sfx('locked'); this.shake = 10; return; }
+      Audio2.sfx('decide'); G.score = 0; G.flags = {}; P = null; G.chapter = this.cur;
+      G.fromMenu = true; go(CHAPTERS[this.cur].start);
+    }
+    if (I.k || I.pause) go('select');
+    if (this.shake > 0) this.shake--;
+  },
+  draw() {
+    px(0, 0, W, H, '#160806');
+    for (let y = 0; y < H; y += 8) px(0, y + ((G.t >> 2) % 8), W, 1, '#22100a');
+    text('選擇章節', W / 2, 4, { s: 2, c: '#fff', a: 'c', o: '#300', grad: ['#ffffff', '#ffb020'] });
+    const cleared = chapterCleared();
+    CHAPTERS.forEach((c, i) => {
+      const y = 34 + i * 23, on = i === this.cur, open = chapterOpen(i);
+      const x = 8 + (on && this.shake ? rnd(-2, 2) : 0);
+      px(x, y, 196, 21, on ? '#5a2a10' : '#2a1208'); if (on) { px(x, y, 196, 1, '#ffd040'); px(x, y + 20, 196, 1, '#ffd040'); }
+      text(open ? c.name : '？？？', x + 6, y + 4, { c: !open ? '#604030' : on ? '#ffd040' : '#e0d0c0', o: '#000' });
+      if (cleared.has(i)) text('✓', x + 188, y + 4, { c: '#80ff80', o: '#000', a: 'r' });
+    });
+    const c = CHAPTERS[this.cur], open = chapterOpen(this.cur), im = IMG.bg[c.thumb];
+    px(212, 34, 166, 96, '#d8b040');
+    if (im && open) ctx.drawImage(im, 0, 0, W, H, 214, 36, 162, 92); else { px(214, 36, 162, 92, '#200a04'); text('？', 295, 70, { s: 2, c: '#604030', a: 'c' }); }
+    text(open ? c.sub : '打過前一章才能選', 295, 136, { c: '#ffffff', o: '#000', a: 'c' });
+    const ch = PLAYABLE[G.chIdx]; if (ch && IMG.por[ch.id]) { px(272, 156, 44, 44, '#d8b040'); ctx.drawImage(IMG.por[ch.id], 274, 158); text(ch.name, 322, 172, { c: '#ffd040', o: '#000' }); }
+    if (!CHAPTER_LOCK) text('試玩版：全部開放', W - 6, 12, { c: '#a0a0a8', o: '#000', a: 'r' });
+    text('↑↓ 選擇　攻擊鍵開始　跳：換角色', W - 4, H - 14, { c: '#a0a0a8', o: '#000', a: 'r' });
+  },
+};
+
 SCENES.intro = storyScene(() => INTRO, () => { if (G.attract) { G.attract = false; go('title'); } else go('ridein'); }, 'title');
 SCENES.midro = storyScene(() => MIDRO, () => { G.stageIdx = 0; go('stagein'); }, 'title');
 SCENES.stagein = {

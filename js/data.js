@@ -2,8 +2,9 @@
 'use strict';
 
 // ---------- 版本與更新紀錄（改版時一起更新；標題畫面與桌墊都看得到） ----------
-const VERSION = 'v0.5';
+const VERSION = 'v0.5.1';
 const CHANGELOG = [
+  ['v0.5.1', '選角色之後可以選擇從哪個章節開始（試玩版全部開放）', '修正動作破圖：鄰格碎片、黃四郎倒地被切斷、騎馬跳躍畫面上的柵欄、重複出現的斗笠和銀元；頭像雜點'],
   ['v0.5', '劇情做到最後：第三關「出城剿匪」（頭目假麻子：地雷、萬民傘擋正面）、小遊戲「打鐵門」、最終關「殺四郎，搶碉樓」（頭目黃四郎：武士長刀、六顆子彈、替身會慢半拍學他的動作）',
     '結局：普通結局「同去，同去」＋三個隱藏結局（結局收集）',
     '玩家自己的角色不會在劇情裡死去（六子、老二、老湯）'],
@@ -253,6 +254,19 @@ const STAGE4 = {
 };
 STAGE3.next = 'story5'; STAGE4.next = 'storyEnd';
 const STAGES = [STAGE1, STAGE2, STAGE3, STAGE4];
+
+// ---------- 章節選擇 ----------
+// 試玩版：全部章節都能選。之後要改成「打過的才能選」，把 CHAPTER_LOCK 改成 true 就好（打過的章節已經會記錄在瀏覽器裡）
+const CHAPTER_LOCK = false;
+const CHAPTERS = [   // start：從哪個場景開始（含該章前面的劇情過場）
+  { name: '序章　青石嶺 劫火車', sub: '騎白馬追馬拉火車', start: 'intro', thumb: 'p_split' },
+  { name: '第一關　鵝城', sub: '冤鼓、涼粉、武舉人', start: 'midro', thumb: 'p_gate' },
+  { name: '第二關　夜襲縣衙', sub: '鴻門宴、殺雞取卵、胡萬', start: 'story2', thumb: 'p_raid' },
+  { name: '小遊戲　散銀子', sub: '把銀子丟進窗戶', start: 'story3', thumb: 'p_silver' },
+  { name: '第三關　出城剿匪', sub: '青石嶺、假麻子', start: 'story4', thumb: 'p_cable' },
+  { name: '小遊戲　打鐵門', sub: '槍在手，跟我走', start: 'story5', thumb: 'p_gate' },
+  { name: '最終關　殺四郎，搶碉樓', sub: '黃四郎與替身', start: 'story6', thumb: 'p_crowd' },
+];
 
 // ---------- 台詞 ----------
 // 說話者：角色 id、'P'＝目前玩家、'' 旁白。台詞照劇本原句（出處場次見 docs/story.md），髒話拿掉

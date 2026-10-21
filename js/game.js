@@ -9,7 +9,7 @@ const G = {
 let P = null, foes = [], projs = [], props = [], items = [], parts = [], pops = [], fx = [];
 let STAGE = STAGE1, stageLen = 5 * W;
 
-function go(scene) { G.scene = scene; G.st = 0; SCENES[scene].enter && SCENES[scene].enter(); }
+function go(scene) { if (typeof markChapter === 'function') markChapter(scene); G.scene = scene; G.st = 0; SCENES[scene].enter && SCENES[scene].enter(); }
 const sfx = n => Audio2.sfx(n);
 
 // ---------- 粒子 ----------
