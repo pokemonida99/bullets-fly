@@ -564,7 +564,7 @@ SCENES.ending = {
     text('HI  ' + String(G.hi).padStart(7, '0'), W / 2, 80, { c: '#c8c8d0', a: 'c', o: '#000' });
     text('正式版預告', W / 2, 110, { c: '#ff8070', a: 'c', o: '#000' });
     text('出城剿匪・假麻子・碉樓決戰黃四郎', W / 2, 126, { c: '#ffffff', a: 'c', o: '#000' });
-    text('四哥、五哥、七弟登場', W / 2, 142, { c: '#ffffff', a: 'c', o: '#000' });
+    text('老四、老五、老七登場', W / 2, 142, { c: '#ffffff', a: 'c', o: '#000' });
     ctx.globalAlpha = 1;
     if (G.st > 90 && (G.t >> 5) & 1) text('THANK YOU FOR PLAYING', W / 2, 176, { c: '#ffd040', a: 'c', o: '#000' });
     text('同人非官方作品　改編自電影《讓子彈飛》', W / 2, H - 14, { c: '#a0a0a8', a: 'c', o: '#000' });
