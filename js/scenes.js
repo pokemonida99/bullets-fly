@@ -107,6 +107,7 @@ function drawWorld() {
   for (const e of foes) list.push({ z: e.z, d: () => drawFoe(e) });
   if (P && P.st !== 'dead') list.push({ z: P.z + 0.1, d: () => drawPlayer(P) });
   for (const pr of projs) list.push({ z: pr.z + 0.2, d: () => drawProj(pr) });
+  for (const h of (typeof helpers !== 'undefined' ? helpers : [])) if (h.t >= 0) list.push({ z: h.z, d: () => { shadow(h.x - G.camX, h.z, 0, 26); drawSpr(h.cid, 'walk' + ((h.t / 3 | 0) % 6), h.x - G.camX, h.z, h.dir, { alpha: 0.95 }); } });
   if (G.drum && G.drum.t >= 0) list.push({ z: G.drum.z, d: drawDrum });
   list.sort((a, b) => a.z - b.z);
   for (const o of list) o.d();
@@ -116,6 +117,8 @@ function drawPlayer(p) {
   shadow(sx, p.z, p.h, 26);
   if (p.inv > 0 && p.inv < 140 && (G.t & 2) && p.st !== 'super') return;
   const fr = playerFrame(p);
+  if (p.aura > 0 && (G.t & 4)) drawSpr(p.cid, fr, sx, p.z - p.h - 1, p.face, { sil: '#c0e0ff', alpha: 0.6 });
+  if (p.st === 'guard' && (G.t & 8)) drawSpr(p.cid, fr, sx, p.z - p.h, p.face, { sil: '#80c0ff', alpha: 0.35 });
   drawSpr(p.cid, fr, sx, p.z - p.h, p.face, { flash: p.flash > 0 && (G.t & 1) });
   if (p.st === 'grab' && p.grab) { /* 被抓的人畫在後面（z 稍小） */ }
 }
@@ -149,6 +152,7 @@ function drawProj(pr) {
     case 'shot': { const d = Math.sign(pr.vx); px(sx - d * 8, sy, 8, 1, 'rgba(255,120,80,.7)'); px(sx - 2, sy - 1, 4, 3, '#ff6040'); break; }
     case 'knife': { ctx.save(); ctx.translate(Math.round(sx), Math.round(sy)); if (pr.vx < 0) ctx.scale(-1, 1); ctx.drawImage(ICON.knife, -6, -2); ctx.restore(); break; }
     case 'coin': { const w = Math.max(1, Math.abs(Math.cos(pr.t / 3)) * 8); shadow(sx, pr.z, pr.h, 6); ctx.drawImage(ICON.coin, Math.round(sx - w / 2), Math.round(sy - 4), Math.round(w), 8); break; }
+    case 'hat': { const ic = ICON.hat; shadow(sx, pr.z, pr.h, 18); if (ic) { const w = ic.width * (0.6 + 0.4 * Math.abs(Math.cos(pr.t / 3))); ctx.drawImage(ic, Math.round(sx - w / 2), Math.round(sy - ic.height / 2), Math.round(w), ic.height); } else { px(sx - 9, sy - 2, 18, 4, '#c8a050'); px(sx - 4, sy - 5, 8, 3, '#e0c070'); } break; }
     case 'stone': shadow(sx, pr.z, pr.h, 20); ctx.drawImage(ICON.stone, Math.round(sx - 9), Math.round(sy - 15), 18, 15); break;
     case 'sound': {
       const r = 8 + pr.t * 1.3, d = Math.sign(pr.vx);
@@ -197,6 +201,11 @@ function drawFx() {
       if (f.t < f.d) continue;
       px(sx - 1, y - 3, 3, 6, '#ffd040'); px(sx, y - 3, 1, 2, '#ffffff');
       if ((G.t + f.d) % 20 < 3) px(sx - 3, y, 7, 1, '#fff7c0');
+    } else if (f.kind === 'cross') {   // 老四狙擊的準星
+      const e = f.target; if (!e || f.t > 14) continue;
+      const cx2 = e.x - G.camX, cy2 = e.z - e.h - 40, r = 14 - f.t * 0.6;
+      ctx.strokeStyle = '#ff3030'; ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(cx2, cy2, r, 0, Math.PI * 2); ctx.stroke();
+      px(cx2 - r - 3, cy2, r * 2 + 6, 1, '#ff3030'); px(cx2, cy2 - r - 3, 1, r * 2 + 6, '#ff3030');
     } else if (f.kind === 'ring') {
       const r = f.t * 3; ctx.strokeStyle = `rgba(255,230,180,${1 - f.t / 30})`; ctx.lineWidth = 2;
       ctx.beginPath(); ctx.ellipse(f.x - G.camX, f.z, r * 1.6, r * 0.45, 0, 0, Math.PI * 2); ctx.stroke();
@@ -363,7 +372,7 @@ SCENES.select = {
   enter() { Audio2.play('select'); this.cur = CHARS.indexOf(PLAYABLE[G.chIdx]); this.done = 0; markMat(this.cur); },
   update() {
     const I = Input.pressed;
-    if (this.done) { if (++this.done > 60) { G.chIdx = PLAYABLE.indexOf(CHARS[this.cur]); G.score = 0; G.attract = false; go('intro'); } return; }
+    if (this.done) { if (++this.done > 100) { G.chIdx = PLAYABLE.indexOf(CHARS[this.cur]); G.score = 0; G.attract = false; go('intro'); } return; }
     let c = this.cur;
     if (I.left) c = (c + 7) % 8; if (I.right) c = (c + 1) % 8;
     if (I.up || I.down) c = (c + 4) % 8;
@@ -394,13 +403,20 @@ SCENES.select = {
         text(n, 116, 78 + i * 13, { c: '#c8c8d0', o: '#000' });
         for (let k = 0; k < 5; k++) px(144 + k * 9, 81 + i * 13, 7, 6, k < ch.stat[i] ? '#ffd040' : '#3a2010');
       });
-      text('招式一　' + ch.s1n, 12, 138, { c: '#9ad8ff', o: '#000' });
-      text('招式二　' + ch.s2n, 12, 152, { c: '#9ad8ff', o: '#000' });
-      text('超必殺　' + ch.supn, 12, 166, { c: '#ffd040', o: '#000' });
+      if (!this.done) {
+        text('招式一　' + ch.s1n, 12, 138, { c: '#9ad8ff', o: '#000' });
+        text('招式二　' + ch.s2n, 12, 152, { c: '#9ad8ff', o: '#000' });
+        text('超必殺　' + ch.supn, 12, 166, { c: '#ffd040', o: '#000' });
+      }
       // 預覽動作
       const fr = this.done ? 'c7' : ['idle0', 'idle1'][(G.t >> 5) & 1];
-      drawSpr(ch.id, fr, 196, 196, 1);
-      if (this.done) text('「' + ch.pick + '」', 12, 186, { c: '#ffffff', o: '#000' });
+      drawSpr(ch.id, fr, 206, 200, 1);
+      if (this.done) {   // 選角台詞（太長就換行）
+        const q = '「' + ch.pick + '」', n = 15, lines = [];
+        for (let i = 0; i < q.length; i += n) lines.push(q.slice(i, i + n));
+        px(6, 178 - (lines.length - 1) * 14, 186, 14 * lines.length + 6, 'rgba(0,0,0,.7)');
+        lines.forEach((l, i) => text(l, 10, 181 - (lines.length - 1 - i) * 14, { c: '#ffffff', o: '#000' }));
+      }
     }
     // 右：八格
     CHARS.forEach((c, i) => {
@@ -510,15 +526,17 @@ function pauseUpdate() {
   }
 }
 function moveLines(ch) {
-  return [['連按攻擊', '四段連打'], ['跳＋攻擊', '跳躍攻擊'], ['→→＋攻擊', '衝刺攻擊'], ['走到敵人身上', '抓住（攻擊＝膝撞，←＋攻擊＝往後摔）'],
-    ['招式一', ch.s1n], ['招式二', ch.s2n + '（打中扣自己一點血）'], ['超必殺', ch.supn + '（怒氣滿）']];
+  const s2 = ch.moves.s2;
+  return [[ch.ranged ? '攻擊（遠）' : '連按攻擊', ch.ranged ? '開槍點射→雙手重射（貼身改槍托、踢）' : '四段連打'], ['跳＋攻擊', '跳躍攻擊'], ['→→＋攻擊', '衝刺攻擊'], ['走到敵人身上', '抓住（攻擊＝膝撞，←＋攻擊＝往後摔）'],
+    ['招式一', ch.s1n], ['招式二', ch.counter ? '按住擺「被動」架勢：擋正面攻擊、自動反擊' : ch.s2n + (s2.cost ? '（打中扣自己一點血）' : '')], ['超必殺', ch.supn + '（怒氣滿）']]
+    .concat(ch.armor ? [['特性', '霸體：出招時被打不會中斷']] : []);
 }
 function pauseDraw() {
   ctx.fillStyle = 'rgba(0,0,0,.65)'; ctx.fillRect(0, 0, W, H);
   if (G.showMoves) {
     const ch = P.ch;
     text('出招表　' + ch.name, W / 2, 26, { s: 1, c: '#ffd040', a: 'c', o: '#000' });
-    moveLines(ch).forEach(([a, b], i) => { text(a, 60, 50 + i * 17, { c: '#9ad8ff', o: '#000' }); text(b, 150, 50 + i * 17, { c: '#ffffff', o: '#000' }); });
+    moveLines(ch).forEach(([a, b], i) => { text(a, 24, 46 + i * 16, { c: '#9ad8ff', o: '#000' }); text(b, 112, 46 + i * 16, { c: '#ffffff', o: '#000' }); });
     text(isTouch ? '招一／招二／超 按鍵直接放' : 'L 招式一　I 招式二　空白鍵 超必殺　K 跳', W / 2, H - 28, { c: '#c0c0c8', a: 'c', o: '#000' });
     return;
   }

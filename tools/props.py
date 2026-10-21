@@ -4,9 +4,10 @@ import sys, io, base64, json
 from PIL import Image
 
 SHEETS = {'props': ['drum', 'jar', 'crate', 'goose', 'jelly', 'coin', 'gold', 'pouch'],
-          'props2': ['axe', 'boulder', 'log', 'clock', 'bush', 'stones', 'flag', 'hotpot']}
+          'props2': ['axe', 'boulder', 'log', 'clock', 'bush', 'stones', 'flag', 'hotpot'],
+          'props3': ['hat', 'whistle', 'p3c', 'p3d', 'p3e', 'p3f', 'p3g', 'p3h']}
 SIZE = {'drum': 46, 'jar': 20, 'crate': 18, 'goose': 13, 'jelly': 12, 'coin': 10, 'gold': 8, 'pouch': 13,
-        'axe': 14, 'boulder': 22, 'log': 14, 'clock': 12, 'bush': 16, 'stones': 8, 'flag': 22, 'hotpot': 16}   # 目標高度（遊戲像素）
+        'hat': 14, 'whistle': 8, 'p3c': 12, 'p3d': 12, 'p3e': 12, 'p3f': 12, 'p3g': 12, 'p3h': 12, 'axe': 14, 'boulder': 22, 'log': 14, 'clock': 12, 'bush': 16, 'stones': 8, 'flag': 22, 'hotpot': 16}   # 目標高度（遊戲像素）
 
 
 def is_mag(r, g, b):

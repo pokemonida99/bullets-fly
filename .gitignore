@@ -1,2 +1,9 @@
 work/
 .DS_Store
+*.avi
+*.mp4
+*.mkv
+*.idx
+*.sub
+*.srt
+*.ass

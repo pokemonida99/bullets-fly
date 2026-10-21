@@ -8,7 +8,7 @@ W, H = 384, 216
 BGS = ['bg1', 'bg2', 'bg3', 'bg4', 'bg5', 'title', 'ending', 'r_far']
 PANELS = ['p_grave', 'p_cards', 'p_invite', 'p_banquet', 'p_toast', 'p_plot', 'p_raid', 'p_unmask', 'p_mourn', 'p_kidnap', 'p_silver', 'p_huajie', 'p_situng', 'p_fanyi', 'p_ridge', 'p_hotpot', 'p_scope', 'p_split', 'p_axes', 'p_flip', 'p_clock', 'p_caravan', 'p_gate', 'p_drum', 'p_liangfen', 'p_wu', 'p_gongping', 'p_stand', 'p_charge']
 import os
-PORTRAIT_IDS = ['dage', 'erge', 'sange', 'liuzi', 'tang', 'huwan', 'wu', 'guard', 'mask', 'soldier', 'huang', 'huajie']
+PORTRAIT_IDS = ['dage', 'erge', 'sange', 'siger', 'wuge', 'qidi', 'liuzi', 'tang', 'huwan', 'wu', 'guard', 'mask', 'soldier', 'huang', 'huajie']
 
 
 def url(im, fmt='PNG'):
@@ -35,9 +35,17 @@ def portrait(cid, sizes=(40, 96)):
         for x in range(im.width):
             if px[x, y] != key: ap[x, y] = 255
     # 左邊那個（半身像）：找左半邊的不透明範圍
-    cols = [any(ap[x, y] for y in range(0, im.height, 3)) for x in range(im.width)]
-    x0 = cols.index(True); x1 = x0
-    while x1 < im.width and cols[x1]: x1 += 1
+    cols = [sum(1 for y in range(0, im.height, 3) if ap[x, y]) > 6 for x in range(im.width)]
+    runs, st = [], None   # 找左半邊最寬的一段（半身像），忽略零星碎點
+    for x, c in enumerate(cols + [False]):
+        if c and st is None: st = x
+        if not c and st is not None: runs.append((st, x)); st = None
+    left = [r for r in runs if r[0] < im.width * 0.55 and r[1] - r[0] > 40] or runs
+    x0, x1 = left[0]
+    if x1 - x0 > im.width * 0.42:   # 半身像跟全身像黏在一起：在中段找最空的一欄切開
+        dens = [sum(1 for y in range(0, im.height, 3) if ap[x, y]) for x in range(x0, x1)]
+        lo, hi = int(len(dens) * 0.35), int(len(dens) * 0.8)
+        x1 = x0 + lo + min(range(hi - lo), key=lambda i: dens[lo + i])
     rgba = im.convert('RGBA'); rgba.putalpha(a)
     bust = rgba.crop((x0, 0, x1, im.height)); bust = bust.crop(bust.getbbox())
     side = max(bust.width, bust.height)

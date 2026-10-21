@@ -75,12 +75,18 @@ function updatePlayer(p) {
   switch (p.st) {
     case 'idle': case 'walk': case 'run': {
       if (Pr.sup && p.meter >= 100) { p.landT = 0; doSuper(p); break; }
-      if (Pr.s1) { p.landT = 0; startMove(p, 's1'); break; }
+      if (Pr.s1) { p.landT = 0; if (!(p.ch.id === 'siger' && projs.some(q => q.kind === 'hat'))) startMove(p, 's1'); break; }
+      if (p.ch.counter && I.s2) { p.landT = 0; p.st = 'guard'; p.t2 = 0; p.mv = null; break; }   // 老七：按住擺「被動」架勢
       if (Pr.s2) { p.landT = 0; startMove(p, 's2'); break; }
       if (p.landT > 0) { p.landT--; break; }
       if (Pr.k) { p.st = 'jump'; p.vh = p.ch.jump; p.vx = dx * p.ch.spd * (p.run ? 1.7 : 1.05); p.mv = null; p.jz = dz * 0.5; sfx('jump'); break; }
       if (Pr.p) {
         if (p.run) { p.run = 0; startMove(p, 'dash'); break; }
+        if (p.ch.ranged) {   // 老四：遠的敵人用槍點射，貼身才用槍托和踢
+          const near = foes.some(e => canHit(e) && Math.abs(e.z - p.z) < 9 && (e.x - p.x) * p.face > -4 && Math.abs(e.x - p.x) < 34);
+          const n = p.comboT > 0 ? Math.min(p.combo + 1, near ? 1 : 2) : 0;
+          p.combo = n; startMove(p, (near ? 'c' : 'r') + n); p.rangedMv = true; break;
+        }
         const n = p.comboT > 0 && p.mvHitLast ? Math.min(p.combo + 1, 3) : 0;
         p.combo = n; startMove(p, 'c' + n); break;
       }
@@ -107,20 +113,22 @@ function updatePlayer(p) {
       if (mv.hop) { p.h = Math.max(0, p.h + p.vh); p.vh -= 0.3; }
       if (mv.ev && mv.ev[p.mt]) moveEvent(p, mv.ev[p.mt]);
       doHits(p, mv, p.mt, true);
-      if (Pr.p && p.mvName[0] === 'c') p.buf = true;
+      if (Pr.p && (p.mvName[0] === 'c' || p.mvName[0] === 'r') && p.mvName !== 'counter') p.buf = true;
       p.mt++;
       // 打中後可以提早接下一段
       const actEnd = mv.hits ? Math.max(...mv.hits.map(h => h.f[1])) : L;
       if ((p.mt >= L) || (p.buf && p.mvHit && p.mt > actEnd + 1 && p.mvName[0] === 'c' && p.mvName !== 'c3')) {
-        const wasCombo = p.mvName[0] === 'c', hit = p.mvHit;
+        const wasCombo = (p.mvName[0] === 'c' && p.mvName !== 'counter') || p.mvName[0] === 'r', hit = p.mvHit || p.mvName[0] === 'r';
         p.mvHitLast = hit; p.mv = null; p.h = 0;
-        if (wasCombo) { p.comboT = hit ? 26 : 0; if (p.mvName === 'c3') { p.combo = 0; p.comboT = 0; p.mvHitLast = false; } }
+        const last = p.mvName === 'c3' || p.mvName === 'r2' || (p.ch.ranged && p.mvName === 'c1');
+        if (wasCombo) { p.comboT = hit ? 26 : 0; if (last) { p.combo = 0; p.comboT = 0; p.mvHitLast = false; } }
         p.st = 'idle';
-        if (p.buf && wasCombo) {
+        if (p.buf && wasCombo && !p.ch.ranged) {
           p.buf = false;
           const n = hit && p.mvName !== 'c3' ? p.combo + 1 : 0;
           p.combo = n; startMove(p, 'c' + n);
         }
+        if (p.buf && p.ch.ranged) p.buf = false;
       }
       break;
     }
@@ -144,6 +152,12 @@ function updatePlayer(p) {
       break;
     }
     case 'hurt': if (--p.t2 <= 0) p.st = 'idle'; break;
+    case 'guard': {   // 老七「被動」：正面攻擊全擋，擋到就自動反擊
+      p.t2++; if (p.blockT > 0) p.blockT--;
+      if (dx) p.face = dx;
+      if (!I.s2 || p.t2 > 150) p.st = 'idle';
+      break;
+    }
     case 'fall': {
       p.x += p.vx; p.h += p.vh; p.vh -= 0.3;
       if (p.h <= 0) {
@@ -158,6 +172,13 @@ function updatePlayer(p) {
     case 'super': break;   // 由 updateSuper 處理
     case 'win': break;
   }
+  if (p.aura > 0) {   // 老七超必殺：一段時間無敵，靠近的敵人自動被反殺
+    p.aura--; p.inv = Math.max(p.inv, 2);
+    if (p.aura % 10 === 0 && (freeSt(p.st) || p.st === 'guard')) {
+      const e = foes.find(e => canHit(e) && Math.abs(e.z - p.z) < 12 && Math.abs(e.x - p.x) < 56);
+      if (e) { p.face = Math.sign(e.x - p.x) || p.face; startMove(p, 'acounter'); }
+    }
+  }
   p.x = clamp(p.x, G.camX + 18, G.camX + W - 18);
 }
 function playerFrame(p) {
@@ -168,6 +189,7 @@ function playerFrame(p) {
     case 'jump': return p.mv ? moveFrame(p) : p.vh > 2 ? 'jump1' : p.vh > -2 ? 'jump2' : 'jump3';
     case 'move': case 'super': return p.mv ? moveFrame(p) : 'idle0';
     case 'grab': return p.sub ? moveFrame(p) : 'grab';
+    case 'guard': return p.blockT > 0 ? 's2b' : 's2a';
     case 'hurt': return p.t2 > 8 ? 'hurt0' : 'hurt1';
     case 'fall': return p.h > 2 ? 'fall' : 'down';
     case 'down': return 'down';
@@ -207,6 +229,13 @@ function throwFoe(p, e, mv) {
 function hurtPlayer(p, dmg, kd, dir) {
   if (p.inv > 0 || p.st === 'fall' || p.st === 'down' || p.st === 'super' || p.st === 'getup' || G.clear) return false;
   if (p.st === 'move' && p.mv.inv && p.mt >= p.mv.inv[0] && p.mt <= p.mv.inv[1]) return false;
+  if (p.st === 'guard' && dir === -p.face) {   // 擋下正面攻擊 → 反擊
+    sfx('hit'); sfx('ricochet'); spark(p.x + p.face * 14 - G.camX, p.z - 44, true, '#c0e0ff'); p.blockT = 8; p.meter = Math.min(100, p.meter + 6);
+    startMove(p, 'counter'); return false;
+  }
+  if (p.ch.armor && p.st === 'move' && !kd && dmg < 14 && p.mvName !== 'counter') {   // 老五霸體：出招中被打不會中斷
+    p.hp = Math.max(1, p.hp - dmg); p.flash = 6; sfx('hit'); G.shake = Math.max(G.shake, 2); return true;
+  }
   if (p.grab) releaseGrab(p);
   p.hp = Math.max(0, p.hp - dmg); p.meter = Math.min(100, p.meter + dmg * 0.9); p.flash = 6;
   p.mv = null; p.run = 0; p.combo = 0;
@@ -235,6 +264,24 @@ function moveEvent(p, ev) {
     case 'knives': for (const dz of [-14, 0, 14]) proj({ kind: 'knife', x: p.x + f * 22, z: clamp(p.z + dz, ZMIN, ZMAX), h: 44, vx: f * 6.5, dmg: 7 * p.ch.pow, pierce: 1, life: 90 }); sfx('knife'); break;
     case 'coins3': [3.4, 4.4, 5.4].forEach((v, i) => proj({ kind: 'coin', x: p.x + f * 16, z: p.z + (i - 1) * 6, h: 40, vx: f * v, vh: 3.2, g: 0.22, dmg: 6 * p.ch.pow, pierce: 1, ground: true })); sfx('coins'); break;
     case 'slash': sfx('slash'); break;
+    case 'pshot': proj({ kind: 'bullet', x: p.x + f * 28, z: p.z, h: 46, vx: f * 7.5, dmg: 5, pierce: 1, life: 70 }); sfx('gun'); spark(p.x + f * 28 - G.camX, p.z - 46, false, '#ffd040'); break;
+    case 'pshot2': proj({ kind: 'bullet', x: p.x + f * 30, z: p.z, h: 46, vx: f * 8.5, dmg: 10, pierce: 2, kd: true, life: 80, heavy: true }); sfx('gun'); G.shake = 2; spark(p.x + f * 30 - G.camX, p.z - 46, true, '#ffd040'); break;
+    case 'hat': proj({ kind: 'hat', x: p.x + f * 20, z: p.z, h: 44, vx: f * 6.5, dmg: 7, pierce: 99, life: 400, owner: p, back: false, zr: 10 }); sfx('throw'); break;
+    case 'twinA': for (const dz of [-5, 5]) proj({ kind: 'bullet', x: p.x + f * 24, z: clamp(p.z + dz, ZMIN, ZMAX), h: 46, vx: f * 8, dmg: 6, pierce: 1, life: 70 }); sfx('gun'); break;
+    case 'twinB': for (const dz of [-18, 18]) proj({ kind: 'bullet', x: p.x + f * 24, z: clamp(p.z + dz, ZMIN, ZMAX), h: 50, vx: f * 8, dmg: 6, pierce: 1, life: 70 }); sfx('gun'); break;
+    case 'aura': p.aura = 300; sfx('freeze'); pop(p.x, p.z - 90, '我喜歡被動。', '#c0e0ff'); break;
+    case 'shoutW': sfx('shoutS'); break;
+    case 'callBro': callBrother(p, p.z, 12); sfx('shoutS'); break;
+    case 'allCharge': { [ZMIN + 8, (ZMIN + ZMAX) / 2, ZMAX - 4, p.z].forEach((z, i) => callBrother(p, z, 22, i * 10)); G.shake = 6; break; }
+    case 'whistleStun': {
+      sfx('shoutS'); fx.push({ kind: 'ring', x: p.x, z: p.z, t: 0 }); fx.push({ kind: 'ring', x: p.x, z: p.z, t: -6 });
+      for (const e of foes) if (canHit(e) && Math.abs(e.x - p.x) < 90 && Math.abs(e.z - p.z) < 22) { e.st = 'daze'; e.t2 = e.type.boss ? 40 : 100; e.mv = null; G.foe = e; G.foeT = 120; }
+      break;
+    }
+    case 'snipe': {   // 老四超必殺：一個一個瞄準，一槍一個
+      const list = foes.filter(e => canHit(e, true) && onScreen(e)).slice(0, 8);
+      p.dashList = list; p.st = 'super'; p.superKind = 'snipe'; p.mt = 0; break;
+    }
     case 'whiff': sfx('whiff'); break;
     case 'whiffBig': sfx('whiffBig'); break;
     case 'land': sfx('land'); dust(p.x + f * 16, p.z, 4); G.shake = 3; break;
@@ -288,6 +335,16 @@ function doSuper(p) {
 }
 // 三哥超必殺的閃身連斬
 function updateSuper(p) {
+  if (p.superKind === 'snipe') {
+    const list = p.dashList, i = Math.floor(p.mt / 16), k = p.mt % 16;
+    if (i >= list.length) { p.mv = { seq: [[p.mt < list.length * 16 + 20 ? 'sp4' : 'win0', 99]] }; p.mt++; if (p.mt > list.length * 16 + 34) { p.st = 'idle'; p.superKind = null; p.mv = null; p.inv = 20; } return; }
+    const e = list[i];
+    p.face = Math.sign(e.x - p.x) || p.face;
+    if (k === 0) fx.push({ kind: 'cross', target: e, t: 0 });
+    if (k === 12 && canHit(e, true)) { sfx('gun'); hitFoe(e, 30, true, p.face, p, { all: true, launch: 3.4 }); spark(e.x - G.camX, e.z - 46, true, '#ffd040'); }
+    p.mv = { seq: [[k < 12 ? (i & 1 ? 'sp2' : 'sp0') : (i & 1 ? 'sp3' : 'sp1'), 99]] };
+    p.mt++; return;
+  }
   if (p.superKind !== 'sange') return;
   const list = p.dashList, i = Math.floor(p.mt / 9), k = p.mt % 9;
   if (i >= list.length) { if (p.mt < list.length * 9 + 24) { p.mv = { seq: [[p.mt < list.length * 9 + 10 ? 'sp4' : 'sp5', 99]] }; p.x = p.home.x; p.z = p.home.z; p.mt++; return; } p.st = 'idle'; p.superKind = null; p.inv = 20; p.mv = null; return; }
@@ -296,6 +353,24 @@ function updateSuper(p) {
   if (k === 4 && canHit(e, true)) { sfx('gun'); hitFoe(e, 15, i === list.length - 1 || e.hp <= 15, p.face, p, { all: true, launch: 3 }); spark(e.x - G.camX, e.z - 40, true, '#ffd040'); }
   p.mv = { seq: [[k < 3 ? 'sp1' : k < 6 ? 'sp2' : 'sp3', 99]] };
   p.mt++;
+}
+
+// ---------- 老五：吹哨叫兄弟（從身後衝進來，整條線上的敵人都會被撞倒） ----------
+let helpers = [];
+function callBrother(p, z, dmg, delay = 0) {
+  const pool = ['dage', 'erge', 'sange', 'siger', 'qidi'].concat(liuziAliveG() ? ['liuzi'] : []).filter(id => id !== p.cid && SPR[id] && SPR[id].walk0);
+  const cid = pick(pool), dir = p.face;
+  helpers.push({ cid, dir, x: dir > 0 ? G.camX - 30 : G.camX + W + 30, z: clamp(z, ZMIN, ZMAX), t: -delay, hit: new Set(), dmg });
+}
+const liuziAliveG = () => PLAYABLE[G.chIdx] && PLAYABLE[G.chIdx].id === 'liuzi' || G.stageIdx === 0;
+function updateHelpers() {
+  for (const h of helpers) {
+    h.t++; if (h.t < 0) continue;
+    h.x += h.dir * 5.2;
+    if (h.t % 12 === 0) { sfx('gunFar'); spark(h.x + h.dir * 20 - G.camX, h.z - 44, false, '#ffd040'); }
+    for (const e of foes) if (!h.hit.has(e.id) && canHit(e) && Math.abs(e.z - h.z) < 12 && Math.abs(e.x - h.x) < 18) { h.hit.add(e.id); hitFoe(e, h.dmg, true, h.dir, P, { all: true, launch: 3.6 }); }
+  }
+  helpers = helpers.filter(h => h.t < 0 || (h.dir > 0 ? h.x < G.camX + W + 40 : h.x > G.camX - 40));
 }
 
 // ---------- 打擊判定 ----------
@@ -643,6 +718,19 @@ function aiWu(e, p) {
 
 // ---------- 飛道具 ----------
 function updateProj(pr) {
+  if (pr.kind === 'hat') {   // 老四的斗笠：飛出去減速、轉回來，去回都打得到；回到手上才能再丟
+    pr.t++; const o = pr.owner;
+    if (!pr.back) { pr.vx *= 0.955; if (Math.abs(pr.vx) < 0.6) { pr.back = true; pr.hitSet = new Set(); } }
+    else { const dx = o.x - pr.x; pr.vx = clamp(pr.vx + Math.sign(dx) * 0.45, -7, 7); pr.z += clamp(o.z - pr.z, -1.5, 1.5); pr.h += clamp(44 - pr.h, -1, 1);
+      if (Math.abs(dx) < 14 && Math.abs(o.z - pr.z) < 10) { pr.dead = true; sfx('blip'); return; } }
+    pr.x += pr.vx;
+    if (pr.t > 400) { pr.dead = true; return; }
+    for (const e of foes) {
+      if (pr.hitSet.has(e.id) || !canHit(e) || Math.abs(e.z - pr.z) > pr.zr || Math.abs(e.x - pr.x) > 14) continue;
+      pr.hitSet.add(e.id); hitFoe(e, pr.dmg, false, Math.sign(pr.vx) || 1, P, {}); spark(pr.x - G.camX, pr.z - 44, false);
+    }
+    return;
+  }
   pr.t++; pr.x += pr.vx; if (pr.vz) pr.z += pr.vz;
   if (pr.g) { pr.h += pr.vh; pr.vh -= pr.g; }
   if (pr.ground && pr.h <= 0) {
@@ -692,7 +780,7 @@ function setupStage() {
   STAGE = STAGES[G.stageIdx || 0]; stageLen = STAGE.segs * W; facadeLayout = null; G.volley = []; G.volleyT = 0;
   foes = []; projs = []; items = []; parts = []; pops = []; fx = [];
   props = STAGE.props.map((p, i) => ({ id: i, k: p.k, x: p.x, z: p.z, hp: p.k === 'jar' ? 1 : 2, shake: 0 }));
-  G.camX = 0; G.lockL = 0; G.lockR = 0; G.wave = -1; G.clear = false; G.bossTalked = false; G.drum = null; G.drumAt = 0; G.foe = null; G.foeT = 0; G.talk = null; G.cutin = null;
+  helpers = []; G.camX = 0; G.lockL = 0; G.lockR = 0; G.wave = -1; G.clear = false; G.bossTalked = false; G.drum = null; G.drumAt = 0; G.foe = null; G.foeT = 0; G.talk = null; G.cutin = null;
   P = newPlayer(PLAYABLE[G.chIdx]);
   P.x = 60;
   nextWave();
@@ -778,6 +866,7 @@ function updatePlay() {
   foes = foes.filter(e => !(e.st === 'dead' && --e.t2 <= 0) && !e.gone);
   for (const pr of projs) updateProj(pr);
   projs = projs.filter(p => !p.dead);
+  updateHelpers();
   tickVolley();
   updateItems();
   for (const pr of props) if (pr.shake > 0) pr.shake--;

@@ -145,7 +145,7 @@ function updateRide() {
 function rideAttack(strong) {
   const p = P, ch = p.ch;
   p.rst = 'atk'; p.rt = 16; p.atkN++;
-  const shooter = ch.id !== 'liuzi';
+  const shooter = ch.id !== 'liuzi' && !ch.rideMelee;
   if (shooter) {
     const n = strong ? 3 : 1;
     for (let i = 0; i < n; i++) projs.push({ x: p.x + 18 + (i - (n - 1) / 2) * 14, y: p.z - 54 - p.h, vx: (i - (n - 1) / 2) * 0.8, vy: -6, ty: R.railY - R.trainH * 0.5, t: 0, kind: ch.id === 'tang' ? 'coin' : 'bullet' });

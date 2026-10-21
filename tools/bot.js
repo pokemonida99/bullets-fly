@@ -53,7 +53,7 @@ window.rideBotStep = () => {
     const gx = windowWorld(g).x - 18;
     if (Math.abs(gx - p.x) > 6) K[gx > p.x ? 'right' : 'left'] = true;
     else if (G.t % 4 === 0) K.p = true;
-    if (p.ch.id === 'liuzi' && p.z > RIDE.zmin + 6 && !danger) K.up = true;
+    if ((p.ch.id === 'liuzi' || p.ch.rideMelee) && p.z > RIDE.zmin + 6 && !danger) K.up = true;
   }
   if (p.meter >= 100) K.sup = true;
 };
