@@ -675,7 +675,7 @@ function buildMat() {
   const basic = isTouch
     ? ['左搖桿：移動（上下＝往裡往外）', '攻：連打　跳：跳躍', '招一・招二：專屬招式', '超：怒氣滿放超必殺', 'START：暫停']
     : ['方向鍵／WASD：移動', 'J 攻擊　K 跳　→→ 跑', 'L 招式一　I 招式二', '空白鍵：超必殺（怒氣滿）', 'Esc：暫停　M：靜音'];
-  let h = `<div class="mat-head">出招表 COMMAND LIST<span><button id="matLog">${VERSION} 更新紀錄</button> <button id="matToggle">收起</button></span></div><div class="mat-body">`;
+  let h = `<div class="mat-head">出招表 COMMAND LIST<span><button id="matIcon">圖示</button> <button id="matLog">${VERSION} 更新紀錄</button> <button id="matToggle">收起</button></span></div><div class="mat-body">`;
   h += `<div class="card basic"><div class="nm">基本操作</div><ul>${basic.map(b => `<li>${b}</li>`).join('')}</ul></div>`;
   CHARS.forEach((ch, i) => {
     if (ch.locked) { h += `<div class="card locked" data-i="${i}"><div class="top"><div class="ph">?</div><div class="nm">${ch.name}<small>${ch.title}</small></div></div><ul><li>正式版登場</li></ul></div>`; return; }
@@ -688,6 +688,7 @@ function buildMat() {
     d.querySelector('div').innerHTML = CHANGELOG.map(([v, ...it]) => `<h4>${v}</h4><ul>${it.map(x => `<li>${x}</li>`).join('')}</ul>`).join('');
     d.showModal();
   });
+  document.getElementById('matIcon').addEventListener('click', () => HomeIcon.open());
   document.getElementById('matToggle').addEventListener('click', () => {
     document.body.classList.toggle('mat-off'); fit();
     document.getElementById('matToggle').textContent = document.body.classList.contains('mat-off') ? '展開' : '收起';
