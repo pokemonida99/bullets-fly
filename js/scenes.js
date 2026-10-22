@@ -457,7 +457,7 @@ function mournText() {   // 第 181 場「老二，老六，師爺，夫人」�
   return [['erge', '老二'], ['liuzi', '老六'], ['tang', '師爺']].filter(([id]) => playerId() !== id).map(([, n]) => n).concat(['夫人']).join('，');
 }
 function storyPages(pages) {
-  return pages.filter(pg => condOk(pg.cond)).map(pg => Object.assign({}, pg, { lines: pg.lines.filter(l => condOk(l[3])).map(l => l[1].includes('%MOURN%') ? [l[0], l[1].replace('%MOURN%', mournText()), l[2]] : l) })).filter(pg => pg.lines.length);
+  return pages.filter(pg => condOk(pg.cond)).map(pg => Object.assign({}, pg, { lines: wrapLines(pg.lines.filter(l => condOk(l[3])).map(l => l[1].includes('%MOURN%') ? [l[0], l[1].replace('%MOURN%', mournText()), l[2]] : l)) })).filter(pg => pg.lines.length);
 }
 function storyScene(pagesFn, onEnd, music) {
   return {

@@ -306,7 +306,7 @@ function moveEvent(p, ev) {
     case 'volley': for (const dz of [-16, 0, 16]) proj({ kind: 'bullet', x: p.x + f * 34, z: clamp(p.z + dz, ZMIN, ZMAX), h: 46, vx: f * 9, dmg: 12, pierce: 9, kd: true, life: 80, heavy: true, zr: 10 }); sfx('gun'); G.shake = 5; G.flash = 2; break;
     case 'shots3': for (const dz of [-14, 0, 14]) proj({ kind: 'bullet', x: p.x + f * 24, z: clamp(p.z + dz, ZMIN, ZMAX), h: 44, vx: f * 7.5, dmg: 6 * p.ch.pow, pierce: 1, life: 90 }); sfx('gun'); break;
     case 'soundwave': proj({ kind: 'sound', x: p.x + f * 30, z: p.z, h: 50, vx: f * 3.2, dmg: 8, kd: true, pierce: 9, zr: 14, life: 34, big: true }); sfx('shoutS'); break;
-    case 'shout': sfx('shoutS'); pop(p.x, p.z - 90, '鵝城的父老鄉親們——！', '#ffd040'); break;
+    case 'shout': sfx('shoutS'); pop(p.x, p.z - 90, '鵝城的父老鄉親們！', '#ffd040'); break;
     case 'leap': p.vh = 0; break;
     case 'bulletsUp': {   // 讓子彈飛一會兒：子彈射上天、停在空中
       sfx('gun'); sfx('freeze');
@@ -611,9 +611,9 @@ function foeFrame(e) {
 }
 function foeDie(e) {
   if (e.type.boss) {
-    if (e.key === 'huwan') { e.st = 'flee'; e.hp = 0; G.score += e.type.score; startTalk('huwanDown'); return; }
+    if (e.key === 'huwan') { e.st = 'flee'; e.hp = 0; G.score += e.type.score; startTalk('huwanDown'); return; }   // 第 45 場：胡萬耳朵中槍，倉皇逃跑
     if (e.key === 'huwan2' || e.key === 'jiamazi' || e.key === 'huang') { e.st = 'kneel'; e.hp = 0; G.score += e.type.score; if (e.key === 'huang') for (const t of foes) if (t.key === 'tishen' && t.st !== 'dead') { t.st = 'dead'; t.t2 = 30; } return; }
-    if (e.key === 'tishen') { e.st = 'dead'; e.t2 = 40; G.score += e.type.score; pop(e.x, e.z - 90, '我不是他！我真的不是他！', '#ffffff'); return; }
+    if (e.key === 'tishen') { e.st = 'dead'; e.t2 = 40; G.score += e.type.score; pop(e.x, e.z - 90, '我真的不是他！', '#ffffff'); return; }
     e.st = 'kneel'; e.hp = 0; G.score += e.type.score;
     for (const d of [-1, 1]) items.push({ k: 'goose', x: e.x + d * 22, z: clamp(e.z + d * 6, ZMIN, ZMAX), h: 30, vh: 3, t: 0 });   // 劇本：武舉人一手拎著兩隻燒鵝
     return;
@@ -662,7 +662,7 @@ function aiHuwan(e, p) {
   e.st = moved ? 'walk' : 'idle'; if (moved) e.walkT = (e.walkT || 0) + 1;
   if (A.cd <= 0 && Math.abs(p.z - e.z) < 10 && adx > 60) {
     e.st = 'boss'; e.mode = 'aim'; e.frame = 'aim'; e.t2 = fast ? 24 : 34; sfx('alert');
-    if (Math.random() < 0.3) { e.mode = 'bow'; e.frame = 'bow'; e.t2 = 30; pop(e.x, e.z - 80, '請——', '#ffffff'); }
+    if (Math.random() < 0.3) { e.mode = 'bow'; e.frame = 'bow'; e.t2 = 30; pop(e.x, e.z - 80, '請。', '#ffffff'); }
   }
 }
 
@@ -736,7 +736,7 @@ function aiHuang(e, p) {
     } else if (m === 'hat') {
       if (e.t2 === 10) { sfx('throw'); proj({ kind: 'hhat', from: 'e', x: e.x + e.face * 20, z: e.z, h: 56, vx: e.face * 3.4, vh: 2, g: 0.08, dmg: decoy ? 4 : 8, life: 140, ground: true, kd: true }); }
     } else if (m === 'summon') {
-      if (e.t2 === 30) { const t = spawnFoe('tishen', e.x < G.camX + W / 2 ? 'R' : 'L', clamp(p.z + rndi(-12, 12), ZMIN, ZMAX)); t.st = 'enter'; t.tx = e.x < G.camX + W / 2 ? G.camX + W - 60 : G.camX + 60; G.foe = e; G.foeT = 99999; pop(e.x, e.z - 100, '贗品是個好東西！', '#ffd040'); sfx('decide'); }
+      if (e.t2 === 30) { const t = spawnFoe('tishen', e.x < G.camX + W / 2 ? 'R' : 'L', clamp(p.z + rndi(-12, 12), ZMIN, ZMAX)); t.st = 'enter'; t.tx = e.x < G.camX + W / 2 ? G.camX + W - 60 : G.camX + 60; G.foe = e; G.foeT = 99999; pop(e.x, e.z - 100, '糟了糟了！我成替身了。', '#ffd040'); sfx('decide'); }
     }
     if (e.t2 <= 0) { e.st = 'idle'; e.h = 0; e.hitDone = false; A.cd = m === 'gun' ? rndi(70, 100) : rndi(34, 60); }
     return;
@@ -815,7 +815,7 @@ function aiWu(e, p) {
     return;
   }
   e.face = Math.sign(dxp) || e.face;
-  if (!A.rage && e.hp < e.type.hp * 0.5) { A.rage = true; e.st = 'boss'; e.mode = 'roar'; e.frame = 'roar'; e.t2 = 70; pop(e.x, e.z - 110, '喝啊——！', '#ff6060'); return; }
+  if (!A.rage && e.hp < e.type.hp * 0.5) { A.rage = true; e.st = 'boss'; e.mode = 'roar'; e.frame = 'roar'; e.t2 = 70; pop(e.x, e.z - 110, '喝啊！', '#ff6060'); return; }
   if (A.cd > 0) A.cd--;
   let moved = false;
   if (A.cd <= 0) {
@@ -909,9 +909,26 @@ function nextWave() {
   const w = STAGE.waves[G.wave];
   G.lockR = w ? w.lock : stageLen - W;
 }
+// 對話框一行放不下的台詞：在標點處拆成好幾句（一句最多 MAXC 字）
+const MAXC = 24;
+function wrapLines(lines) {
+  const out = [];
+  for (const l of lines) {
+    let str = l[1];
+    while (str.length > MAXC) {
+      let cut = -1;
+      for (let i = MAXC; i >= 8; i--) if ('，。！？；、…—'.includes(str[i - 1])) { cut = i; break; }
+      if (cut < 0) cut = MAXC;
+      while ('…—'.includes(str[cut]) && cut < str.length) cut++;
+      out.push([l[0], str.slice(0, cut), l[2], l[3]]); str = str.slice(cut);
+    }
+    if (str.length) out.push([l[0], str, l[2], l[3]]);
+  }
+  return out;
+}
 function startTalk(key) {
   const src = TALK[key], pn = src.find(l => !Array.isArray(l) && condOk(l.cond));
-  const lines = src.filter(l => Array.isArray(l) && condOk(l[3])).map(([who, s, nm]) => [who === 'P' ? P.cid : who, s, nm]);
+  const lines = wrapLines(src.filter(l => Array.isArray(l) && condOk(l[3])).map(([who, s, nm]) => [who === 'P' ? P.cid : who, s, nm]));
   if (!lines.length) return;
   G.talk = { lines, i: 0, t: 0, key, panel: pn && pn.panel };
 }
@@ -943,8 +960,9 @@ function updateWaves() {
   if (alive.length === 0 && !G.talk) {
     if (w.boss) {
       const b = foes.find(e => e.key === w.boss);
-      if (b && b.st === 'kneel' && !G.bossTalked) { G.bossTalked = true; startTalk(w.bossTalk || 'wuDown'); return; }
-      if (b && (b.key === 'huwan2' || b.key === 'jiamazi') && G.bossTalked && b.st === 'kneel') { b.st = 'dead'; b.t2 = 30; sfx('gun'); return; }   // 劇本第 67、124 場：被一槍打死
+      if (b && b.st === 'kneel' && !b.talked) { b.talked = true; G.bossTalked = true; startTalk(w.bossTalk || 'wuDown'); return; }
+      if (b && (b.key === 'huwan2' || b.key === 'jiamazi') && b.talked && b.st === 'kneel') { b.st = 'dead'; b.t2 = 30; sfx('gun'); return; }   // 劇本第 67、124 場：被一槍打死
+      if (b && b.key === 'wu' && b.talked && b.st === 'kneel') { b.st = 'flee'; return; }   // 武舉人磕完頭就跑了（第 37 場）
     }
     nextWave(); G.goT = 150;
     if (G.wave < STAGE.waves.length) sfx('go');

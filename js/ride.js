@@ -256,7 +256,7 @@ SCENES.ridein = {
   draw() {
     drawRide(); ctx.fillStyle = `rgba(0,0,0,${Math.max(0, 1 - G.st / 40) * 0.8 + 0.2})`; ctx.fillRect(0, 0, W, H);
     text('序章　青石嶺', W / 2, 74, { s: 2, c: '#fff', a: 'c', o: '#300', grad: ['#ffffff', '#ffb020'] });
-    text('—— 劫火車 ——', W / 2, 106, { c: '#e8d8b0', a: 'c', o: '#000' });
+    text('劫火車', W / 2, 106, { c: '#e8d8b0', a: 'c', o: '#000' });
   },
 };
 SCENES.ride = {

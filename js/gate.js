@@ -72,7 +72,7 @@ function drawGate() {
     ctx.fillStyle = 'rgba(0,0,0,.55)'; ctx.fillRect(0, 64, W, 92);
     const q = GT.result === 'ques';
     text(q ? '問號！' : '驚嘆號！', W / 2, 72, { s: 2, c: '#fff', a: 'c', o: '#300', grad: ['#ffffff', '#ffb020'] });
-    text(q ? '「勾？再看！」　——門上打出了一個問號……' : '「這像驚嘆號嗎，那點呢？」', W / 2, 106, { c: '#ffd040', a: 'c', o: '#000' });
+    text(q ? '「勾？再看！」門上打出了一個問號。' : '「這像驚嘆號嗎，那點呢？」', W / 2, 106, { c: '#ffd040', a: 'c', o: '#000' });
     text('相似度 ' + Math.round(GT.match * 100) + '%　　獎勵 ' + GT.score, W / 2, 128, { c: '#ffffff', a: 'c', o: '#000' });
   }
 }
