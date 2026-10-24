@@ -54,7 +54,7 @@ function newPlayer(ch, keep) {
 const freeSt = st => st === 'idle' || st === 'walk' || st === 'run';
 function startMove(p, name) {
   const mv = p.ch.moves[name];
-  p.st = 'move'; p.mv = mv; p.mvName = name; p.mt = 0; p.hitSet = new Set(); p.mvHit = false; p.buf = false; p.costPaid = false;
+  p.st = 'move'; p.mv = mv; p.mvName = name; p.mt = 0; p.chaseE = null; p.hitSet = new Set(); p.mvHit = false; p.buf = false; p.costPaid = false;
   if (mv.hop) { p.vh = mv.hop; }
   if (mv.hits && !mv.ev) sfx(mv.sfx || 'whiff');
 }
@@ -112,6 +112,7 @@ function updatePlayer(p) {
       if (mv.vx) for (const [a, b, v] of mv.vx) if (p.mt >= a && p.mt < b) p.x += v * p.face;
       if (mv.hop) { p.h = Math.max(0, p.h + p.vh); p.vh -= 0.3; }
       if (mv.ev && mv.ev[p.mt]) moveEvent(p, mv.ev[p.mt]);
+      if (mv.chase && p.mt >= mv.chase[0] && p.mt < mv.chase[1]) chaseStep(p, mv.chase[1]);
       doHits(p, mv, p.mt, true);
       if (Pr.p && (p.mvName[0] === 'c' || p.mvName[0] === 'r') && p.mvName !== 'counter') p.buf = true;
       p.mt++;
@@ -334,6 +335,37 @@ function moveEvent(p, ev) {
       p.dashList = list; p.st = 'super'; p.superKind = 'sange'; p.mt = 0; p.home = { x: p.x, z: p.z };
       break;
     }
+    case 'toolThrow': {   // 夫人百寶箱：每次掏出來的東西不一樣（劇本第 33 場：刨子、鉗子、皮鞭、磚頭、蠟燭、刷子）
+      const t = pick(TOOLS), base = { kind: 'tool', icon: t.icon, x: p.x + f * 22, z: p.z, h: 46, dmg: t.dmg * p.ch.pow, pierce: t.pierce || 1, kd: !!t.kd, daze: t.daze, life: 90, spin: t.spin };
+      if (t.n) for (const dz of [-14, 0, 14]) proj(Object.assign({}, base, { z: clamp(p.z + dz, ZMIN, ZMAX), vx: f * t.vx }));
+      else proj(Object.assign(base, { vx: f * t.vx, vh: t.vh || 0, g: t.g || 0, ground: !!t.g }));
+      pop(p.x, p.z - 84, t.name + '！', '#ffd040'); sfx('throw'); break;
+    }
+    case 'breath': sfx('whoosh'); break;
+    case 'chaseCry': sfx('whoosh'); pop(p.x, p.z - 84, '他跑我就追！', '#ffd040'); break;
+    case 'pi': case 'pi2': {   // 夫人超必殺「屁！！」（第 4 場）：一聲吼，畫面上的敵人全被震飛
+      const big = ev === 'pi2';
+      sfx('shoutS'); sfx('roar'); G.shake = big ? 14 : 10; G.flash = 3;
+      fx.push({ kind: 'bigtext', str: big ? '屁！！！' : '屁！！', x: G.camX + W / 2, y: big ? 70 : 52, t: 0, life: 50 });
+      for (const d of [-1, 1]) proj({ kind: 'sound', x: p.x + d * 24, z: p.z, h: 50, vx: d * 4, dmg: 0, pierce: 0, zr: 30, life: 30, big: true, fxOnly: true });
+      for (const e of foes) if (canHit(e, true) && onScreen(e)) hitFoe(e, big ? 18 : 22, true, Math.sign(e.x - p.x) || f, p, { all: true, launch: big ? 5 : 4 });
+      break;
+    }
+    case 'drumSet': {   // 花姐超必殺「鼓陣齊鳴」（第 29 場）：擺出大鼓
+      G.wardrum = { x: p.x + f * 30, z: p.z + 1, face: f, kick: 0 }; sfx('land'); dust(p.x + f * 30, p.z, 6); break;
+    }
+    case 'drumBeat': case 'drumBoom': {
+      const d = G.wardrum, boom = ev === 'drumBoom'; if (!d) break;
+      d.kick = boom ? 10 : 6; sfx(boom ? 'drumBig' : 'drum'); G.shake = boom ? 12 : 4; if (boom) G.flash = 3;
+      fx.push({ kind: 'ring', x: d.x, z: d.z, t: 0 }); if (boom) fx.push({ kind: 'ring', x: d.x, z: d.z, t: -5 });
+      pop(d.x, d.z - 70, boom ? '咚——！' : '咚！', boom ? '#ff6040' : '#ffd040');
+      for (const e of foes) if (canHit(e, true) && onScreen(e)) {
+        const dir = Math.sign(e.x - d.x) || f;
+        if (boom) hitFoe(e, 26, true, dir, p, { all: true, launch: 4.4 });
+        else if (e.st !== 'fall' && e.st !== 'down') { hitFoe(e, 5, false, dir, p, { all: true }); if (e.st === 'hurt') e.t2 = 12; }
+      }
+      break;
+    }
     case 'abacus': sfx('abacus'); break;
     case 'moneyRain': {
       sfx('coins'); sfx('coins');
@@ -405,6 +437,7 @@ function doHits(a, mv, t, isP) {
         a.hitSet.add(key);
         const dir = a.face;
         hitFoe(e, hb.dmg * a.ch.pow, !!hb.kd, dir, a, hb);
+        if (hb.snatch) snatchMask(e, dir);
         a.mvHit = true;
         if (a.mv && a.mv.cost && !a.costPaid) { a.costPaid = true; a.hp = Math.max(1, a.hp - a.mv.cost); }
         spark((bx.x0 + bx.x1) / 2 + dir * 6 - G.camX, e.z - e.h - (bx.top + bx.bot) / 2 + a.h + (e.z - a.z) * 0, hb.kd);
@@ -442,6 +475,26 @@ function hitFoe(e, dmg, kd, dir, a, hb = {}) {
   if (kd || e.hp <= 0) knock(e, dir, hb.launch);
   else { e.st = 'hurt'; e.t2 = 16; e.mv = null; e.x += dir * 2.5; }
   checkFoeDead(e, dir);
+}
+// 花姐「他跑我就追」（第 167 場）：盯住最近的敵人追，追到身邊就跳到揭面具那一格；沒有敵人就往前衝一小段
+function chaseStep(p, end) {
+  let e = p.chaseE;
+  if (!e || !canHit(e)) e = p.chaseE = foes.filter(q => canHit(q) && onScreen(q)).sort((a, b) => Math.abs(a.x - p.x) + Math.abs(a.z - p.z) * 2 - Math.abs(b.x - p.x) - Math.abs(b.z - p.z) * 2)[0] || null;
+  if (p.mt % 6 === 0) dust(p.x - p.face * 6, p.z, 2);
+  if (!e) { p.x += p.face * 4.2; if (p.mt >= p.mv.chase[0] + 14) p.mt = end - 1; return; }
+  const dx = e.x - p.x, dz = e.z - p.z;
+  p.face = Math.sign(dx) || p.face;
+  if (Math.abs(dx) < 28 && Math.abs(dz) < 5) { p.mt = end - 1; return; }
+  p.x += clamp(dx - p.face * 22, -4.4, 4.4); p.z = clamp(p.z + clamp(dz, -2.2, 2.2), ZMIN, ZMAX);
+}
+// 花姐揭面具（第 75 場）：從身邊一把摘下面具，對方愣住；假麻匪的九筒面具會飛出去
+function snatchMask(e, dir) {
+  if (e.hp <= 0 || e.st === 'fall' || e.st === 'dead') return;
+  e.st = 'daze'; e.t2 = e.type.boss ? 36 : 110; e.mv = null; e.dazeMark = '?';
+  if ((e.kind === 'mask' || e.kind === 'maskr') && !e.unmasked) {
+    e.unmasked = true; part({ x: e.x - G.camX, y: e.z - 58, vx: -dir * 1.2, vy: -3, g: 0.15, life: 50, type: 'icon', icon: 'mask' });
+    pop(e.x, e.z - 80, '原來是你！', '#ffd040');
+  }
 }
 function checkFoeDead(e, dir) { if (e.hp <= 0 && e.st !== 'fall' && e.st !== 'dead' && e.st !== 'thrown') knock(e, dir, 3.4); }
 function knock(e, dir, launch, soft) {
@@ -481,7 +534,7 @@ function updateFoe(e) {
       return;
     }
     case 'hurt': if (--e.t2 <= 0) { e.st = 'idle'; e.ai.cd = rndi(10, 30); } return;
-    case 'daze': if (--e.t2 <= 0) { e.st = 'idle'; e.ai.cd = 20; } else if (e.t % 24 === 0) { e.x += rnd(-6, 6); } return;
+    case 'daze': if (--e.t2 <= 0) { e.st = 'idle'; e.ai.cd = 20; e.dazeMark = null; } else if (e.t % 24 === 0) { e.x += rnd(-6, 6); } return;
     case 'grabbed': e.t2++; return;
     case 'fall': case 'thrown': {
       e.x += e.vx; e.h += e.vh; e.vh -= 0.28;
@@ -856,9 +909,11 @@ function updateProj(pr) {
     pr.h = 0;
     if (pr.kind === 'stone') { pr.dead = true; sfx('quake'); G.shake = 8; fx.push({ kind: 'ring', x: pr.x, z: pr.z, t: 0 }); if (Math.abs(P.x - pr.x) < 30 && Math.abs(P.z - pr.z) < 12 && P.h < 6) hurtPlayer(P, 10, true, Math.sign(P.x - pr.x) || 1); dust(pr.x, pr.z, 8); return; }
     if (pr.kind === 'coin') { pr.dead = true; if (pr.rain && Math.random() < 0.12) items.push({ k: 'coin', x: pr.x, z: pr.z, h: 0, vh: 0, t: 0, small: true }); return; }
+    if (pr.kind === 'tool') { pr.dead = true; sfx('land'); dust(pr.x, pr.z, 4); return; }
   }
   if (pr.kind === 'wave' && pr.t % 3 === 0) dust(pr.x, pr.z, 2);
   if (--pr.life <= 0 || pr.x < G.camX - 40 || pr.x > G.camX + W + 40) { pr.dead = true; return; }
+  if (pr.fxOnly) return;
   if (pr.from === 'p') {
     for (const e of foes) {
       if (pr.hitSet.has(e.id) || !canHit(e)) continue;
@@ -866,6 +921,7 @@ function updateProj(pr) {
       if (!pr.big && (pr.h < e.h - 4 || pr.h > e.h + (e.type.heavy ? 96 : 70))) continue;
       pr.hitSet.add(e.id);
       hitFoe(e, pr.dmg, !!pr.kd, Math.sign(pr.vx) || (Math.random() < 0.5 ? 1 : -1), P, { all: pr.big });
+      if (pr.daze && e.st === 'hurt') { e.st = 'daze'; e.t2 = e.type.boss ? 30 : pr.daze; e.dazeMark = '!'; }
       spark(pr.x - G.camX, pr.z - Math.max(pr.h, 30), pr.big);
       if (--pr.pierce <= 0) { pr.dead = true; return; }
     }
@@ -878,6 +934,15 @@ function updateProj(pr) {
   }
 }
 
+// 夫人百寶箱掏出來的東西（劇本第 33 場）
+const TOOLS = [
+  { name: '磚頭', icon: 'brick', vx: 4.2, vh: 3.4, g: 0.24, dmg: 13, kd: 1 },          // 拋物線、砸到就倒
+  { name: '刨子', icon: 'plane', vx: 7.5, dmg: 8, pierce: 3, spin: 0 },              // 貼地滑出去、一路刨過三個人
+  { name: '鉗子', icon: 'pliers', vx: 6, dmg: 7, daze: 70, spin: 0.35 },             // 夾住、愣一下
+  { name: '蠟燭', icon: 'candle', vx: 3.4, vh: 4, g: 0.26, dmg: 10, kd: 1, spin: 0.25 },
+  { name: '刷子', icon: 'brush', vx: 6.5, dmg: 5, n: 3, spin: 0.3 },                 // 一把三支、上中下三條線
+  { name: '皮鞭', icon: 'whip', vx: 8, dmg: 9, pierce: 2, kd: 1, spin: 0 },
+];
 // ---------- 道具 ----------
 const ITEM = { goose: { name: '燒鵝', heal: 45, score: 0 }, jelly: { name: '涼粉', heal: 18, score: 0 }, coin: { name: '銀元', score: 500 }, gold: { name: '金條', score: 2000 }, pouch: { name: '麻袋銀子', score: 1000 } };
 function updateItems() {
@@ -899,7 +964,7 @@ function setupStage() {
   STAGE = STAGES[G.stageIdx || 0]; stageLen = STAGE.segs * W; facadeLayout = null; G.volley = []; G.volleyT = 0;
   foes = []; projs = []; items = []; parts = []; pops = []; fx = [];
   props = STAGE.props.map((p, i) => ({ id: i, k: p.k, x: p.x, z: p.z, hp: p.k === 'jar' ? 1 : 2, shake: 0 }));
-  helpers = []; G.mines = []; G.camX = 0; G.lockL = 0; G.lockR = 0; G.wave = -1; G.clear = false; G.bossTalked = false; G.drum = null; G.drumAt = 0; G.foe = null; G.foeT = 0; G.talk = null; G.cutin = null;
+  helpers = []; G.mines = []; G.camX = 0; G.lockL = 0; G.lockR = 0; G.wave = -1; G.clear = false; G.bossTalked = false; G.drum = null; G.drumAt = 0; G.wardrum = null; G.foe = null; G.foeT = 0; G.talk = null; G.cutin = null;
   P = newPlayer(PLAYABLE[G.chIdx]);
   P.x = 60;
   nextWave();
@@ -1010,7 +1075,8 @@ function updatePlay() {
   updateItems();
   for (const pr of props) if (pr.shake > 0) pr.shake--;
   for (const f of fx) f.t++;
-  fx = fx.filter(f => f.kind === 'hang' ? f.t < 200 : f.t < 30);
+  fx = fx.filter(f => f.kind === 'hang' ? f.t < 200 : f.t < (f.life || 30));
+  if (G.wardrum) { if (G.wardrum.kick > 0) G.wardrum.kick--; if (!P || P.st !== 'move' || P.mvName !== 'sup') G.wardrum = null; }
   for (const q of parts) { q.t++; q.x += q.vx; q.y += q.vy; q.vy += q.g; }
   parts = parts.filter(q => q.t < q.life);
   for (const q of pops) q.t++;

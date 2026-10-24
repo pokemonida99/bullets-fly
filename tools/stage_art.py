@@ -8,7 +8,7 @@ W, H = 384, 216
 BGS = ['bg1', 'bg2', 'bg3', 'bg4', 'bg5', 'title', 'ending', 'r_far']
 PANELS = ['p_mozart', 'p_skills', 'p_cloud', 'p_photo', 'p_rally', 'p_cable', 'p_fakemazi', 'p_tangdie', 'p_burn', 'p_return', 'p_gate', 'p_crowd', 'p_charge2', 'p_smoke', 'p_explode', 'p_bikes', 'h_ryuyou', 'h_kangcheng', 'h_whiteman', 'p_grave', 'p_cards', 'p_invite', 'p_banquet', 'p_toast', 'p_plot', 'p_raid', 'p_unmask', 'p_mourn', 'p_kidnap', 'p_silver', 'p_huajie', 'p_situng', 'p_fanyi', 'p_ridge', 'p_hotpot', 'p_scope', 'p_split', 'p_axes', 'p_flip', 'p_clock', 'p_caravan', 'p_gate', 'p_drum', 'p_liangfen', 'p_wu', 'p_gongping', 'p_stand', 'p_charge']
 import os
-PORTRAIT_IDS = ['jiamazi', 'dage', 'erge', 'sange', 'siger', 'wuge', 'qidi', 'liuzi', 'tang', 'huwan', 'wu', 'guard', 'mask', 'soldier', 'huang', 'huajie']
+PORTRAIT_IDS = ['jiamazi', 'dage', 'erge', 'sange', 'siger', 'wuge', 'qidi', 'liuzi', 'tang', 'huwan', 'wu', 'guard', 'mask', 'soldier', 'huang', 'huajie', 'wife']
 
 
 def url(im, fmt='PNG'):

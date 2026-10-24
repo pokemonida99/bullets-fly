@@ -148,8 +148,8 @@ function rideAttack(strong) {
   const shooter = ch.id !== 'liuzi' && !ch.rideMelee;
   if (shooter) {
     const n = strong ? 3 : 1;
-    for (let i = 0; i < n; i++) projs.push({ x: p.x + 18 + (i - (n - 1) / 2) * 14, y: p.z - 54 - p.h, vx: (i - (n - 1) / 2) * 0.8, vy: -6, ty: R.railY - R.trainH * 0.5, t: 0, kind: ch.id === 'tang' ? 'coin' : 'bullet' });
-    sfx(ch.id === 'tang' ? 'coins' : 'gun');
+    for (let i = 0; i < n; i++) projs.push({ x: p.x + 18 + (i - (n - 1) / 2) * 14, y: p.z - 54 - p.h, vx: (i - (n - 1) / 2) * 0.8, vy: -6, ty: R.railY - R.trainH * 0.5, t: 0, kind: ch.id === 'tang' ? 'coin' : ch.toolbox ? 'brick' : 'bullet' });
+    sfx(ch.id === 'tang' ? 'coins' : ch.toolbox ? 'throw' : 'gun');
   } else {
     sfx('whiffBig');
     if (p.z < RIDE.zmin + 12) {   // 貼著車廂才打得到
@@ -179,7 +179,7 @@ function throwAxes() {
 
 function riderFrame(p) {
   if (p.rst === 'hurt') return 'rhurt';
-  if (p.rst === 'atk') return p.atkN & 1 ? 'ratk0' : 'ratk1';
+  if (p.rst === 'atk') return p.atkN & 1 && !p.ch.toolbox ? 'ratk0' : 'ratk1';   // 夫人的 ratk0 畫成手上還提著皮箱又甩出一個，只用丟東西那格
   if (p.h > 0) return 'rjump';
   return 'ride' + ((R.t / 5 | 0) % 4);
 }
@@ -238,7 +238,7 @@ function drawRide() {
     if (s.t < s.T) { px(x - 1, y - 1, 3, 3, '#ff8040'); px(lerp(s.x0, s.x1, Math.max(0, k - 0.12)), lerp(s.y0, s.z1 - 30, Math.max(0, k - 0.12)), 2, 2, 'rgba(255,200,120,.6)'); }
     if (s.t > s.T - 14 && s.t < s.T && (G.t & 2)) { ctx.strokeStyle = '#ff4040'; ctx.lineWidth = 1; ctx.beginPath(); ctx.ellipse(s.x1, s.z1, 9, 3, 0, 0, Math.PI * 2); ctx.stroke(); }
   }
-  for (const b of projs) { if (b.kind === 'coin') ctx.drawImage(ICON.coin, Math.round(b.x - 4), Math.round(b.y - 4), 8, 8); else { px(b.x - 1, b.y - 3, 2, 6, '#fff3a0'); px(b.x, b.y + 3, 1, 6, 'rgba(255,240,160,.5)'); } }
+  for (const b of projs) { if (b.kind === 'coin') ctx.drawImage(ICON.coin, Math.round(b.x - 4), Math.round(b.y - 4), 8, 8); else if (b.kind === 'brick') ctx.drawImage(ICON.brick, Math.round(b.x - 6), Math.round(b.y - 3)); else { px(b.x - 1, b.y - 3, 2, 6, '#fff3a0'); px(b.x, b.y + 3, 1, 6, 'rgba(255,240,160,.5)'); } }
   drawFx();
   ctx.restore();
   if (G.flash) { ctx.fillStyle = `rgba(255,255,255,${G.flash / 10})`; ctx.fillRect(0, 0, W, H); }

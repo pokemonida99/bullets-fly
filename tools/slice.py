@@ -5,7 +5,7 @@ import sys, os, io, base64, json
 from PIL import Image, ImageChops, ImageFilter
 
 TARGET_H = 70          # 站姿高度（遊戲像素）
-TARGET_BY = {'jiamazi': 70, 'huang': 76, 'siger': 74, 'wuge': 74, 'qidi': 68, 'erge': 76, 'liuzi': 68, 'tang': 62, 'guard': 68, 'mask': 68, 'maskr': 68, 'huwan': 72, 'wu': 94, 'soldier': 68}
+TARGET_BY = {'jiamazi': 70, 'huang': 76, 'siger': 74, 'wuge': 74, 'qidi': 68, 'erge': 76, 'liuzi': 68, 'tang': 62, 'wife': 66, 'huajie': 64, 'guard': 68, 'mask': 68, 'maskr': 68, 'huwan': 72, 'wu': 94, 'soldier': 68}
 RIDE_H = 92            # 騎馬整張（馬＋人）高度
 # v0.2：每人 7 張動作表（A1 站走、A2 跳／受傷、B1 B2 連打、C1 招式、C2 超必殺與勝利、R 騎馬）
 HERO = {
@@ -29,7 +29,7 @@ BOSSES = {
     'huang': {'E1': WALK, 'E2': ['draw', 'raise', 'slash', 'slash2', 'gaim', 'gfire', 'hat', 'laugh'], 'E3': ['hurt0', 'hurt1', 'fall', 'down', 'fan', 'order', 'kneel2', 'smoke']},
     'maskr': {'E1': WALK, 'E2': ['raim', 'aim', 'fire', 'butt', 'hurt0', 'fall', 'down', 'getup']},
 }
-CHARS = {c: HERO for c in ['dage', 'erge', 'sange', 'siger', 'wuge', 'liuzi', 'qidi', 'tang']}
+CHARS = {c: HERO for c in ['dage', 'erge', 'sange', 'siger', 'wuge', 'liuzi', 'qidi', 'tang', 'wife', 'huajie']}
 CHARS.update({c: ENEMY for c in ['guard', 'mask']}); CHARS.update(BOSSES)
 AIR = {'jump0', 'jump1', 'jump2', 'jump3', 'jatk0', 'jatk1', 'walk0', 'walk1', 'walk2', 'walk3', 'walk4', 'walk5', 'fall', 'down', 'down2', 'hop',
        'ride0', 'ride1', 'ride2', 'ride3', 'ratk0', 'ratk1', 'rjump', 'rhurt', 'charge1', 'charge2', 'jump'}

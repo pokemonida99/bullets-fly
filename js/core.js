@@ -56,16 +56,39 @@ function silhouette(src, col) {
   return c;
 }
 
+// ---------- 暫存畫布保全 ----------
+// 手機記憶體吃緊（或 GPU 重啟）時，瀏覽器可能把預先畫好的小畫布清成透明：文字、道具會整批不見。
+// 用一張金絲雀畫布定期抽查，被清掉就叫各快取重做。
+const lostHooks = [];
+function onCanvasLost(fn) { lostHooks.push(fn); }
+const canary = mkCanvas(64, 64);
+function paintCanary() { canary[1].fillStyle = '#fff'; canary[1].fillRect(0, 0, 64, 64); }
+paintCanary();
+function checkCanvases() {
+  let ok = false;
+  try { ok = canary[1].getImageData(32, 32, 1, 1).data[3] === 255; } catch (e) { /* 讀不到就當作被清了 */ }
+  if (ok) return false;
+  paintCanary();
+  for (const fn of lostHooks) fn();
+  return true;
+}
+addEventListener('pageshow', checkCanvases);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) checkCanvases(); });
+cv.addEventListener('contextrestored', checkCanvases);
+
 // ---------- 像素文字（俐方體11號，二值化後快取） ----------
 const FONT = "12px Cubic, 'PingFang TC', sans-serif";
 const textCache = new Map();
+const TEXT_CACHE_MAX = 400;      // 對話逐字打出、分數跳動都會產生新字串，不設上限會一路吃記憶體
+onCanvasLost(() => textCache.clear());
+const measure = mkCanvas(4, 4)[1];
 function textBitmap(str, col, opt) {
   const key = str + '|' + col + '|' + (opt.o || '') + '|' + (opt.grad || '');
   let c = textCache.get(key);
-  if (c) return c;
-  const [m, mg] = mkCanvas(4, 4);
-  mg.font = FONT;
-  const tw = Math.ceil(mg.measureText(str).width) + 4, th = 16;
+  if (c) { textCache.delete(key); textCache.set(key, c); return c; }
+  if (textCache.size >= TEXT_CACHE_MAX) textCache.delete(textCache.keys().next().value);
+  measure.font = FONT;
+  const tw = Math.ceil(measure.measureText(str).width) + 4, th = 16;
   const [t, tg] = mkCanvas(tw, th);
   tg.font = FONT; tg.textBaseline = 'top'; tg.fillStyle = '#fff';
   tg.fillText(str, 2, 2);

@@ -110,6 +110,7 @@ function drawWorld() {
   for (const pr of projs) list.push({ z: pr.z + 0.2, d: () => drawProj(pr) });
   for (const h of (typeof helpers !== 'undefined' ? helpers : [])) if (h.t >= 0) list.push({ z: h.z, d: () => { shadow(h.x - G.camX, h.z, 0, 26); drawSpr(h.cid, 'walk' + ((h.t / 3 | 0) % 6), h.x - G.camX, h.z, h.dir, { alpha: 0.95 }); } });
   if (G.drum && G.drum.t >= 0) list.push({ z: G.drum.z, d: drawDrum });
+  if (G.wardrum) list.push({ z: G.wardrum.z, d: drawWarDrum });
   list.sort((a, b) => a.z - b.z);
   for (const o of list) o.d();
 }
@@ -138,7 +139,7 @@ function drawFoe(e) {
   else drawSpr(e.kind, fr, sx, y, e.face, opt);
   if (e.kind === 'wu' && e.ai.rage && e.st !== 'kneel' && (G.t & 8)) drawSpr(e.kind, fr, sx, y, e.face, { sil: '#ff2020', alpha: 0.25 });
   if (e.kind === 'huwan' && e.st === 'boss' && e.mode === 'aim' && (G.t & 4)) { px(sx + e.face * 28 - 2, e.z - 50, 4, 4, '#ff3030'); }
-  if (e.st === 'daze') text('$', sx, e.z - 84 + Math.sin(G.t / 5) * 2, { c: '#ffd040', a: 'c', o: '#000' });
+  if (e.st === 'daze') text(e.dazeMark || '$', sx, e.z - 84 + Math.sin(G.t / 5) * 2, { c: '#ffd040', a: 'c', o: '#000' });
   if (e.unmasked && e.kind === 'mask' && e.st !== 'dead') { /* 面具掉了：只靠粒子表現 */ }
 }
 function drawProj(pr) {
@@ -155,6 +156,11 @@ function drawProj(pr) {
     case 'coin': { const w = Math.max(1, Math.abs(Math.cos(pr.t / 3)) * 8); shadow(sx, pr.z, pr.h, 6); ctx.drawImage(ICON.coin, Math.round(sx - w / 2), Math.round(sy - 4), Math.round(w), 8); break; }
     case 'hat': { const ic = ICON.hat; shadow(sx, pr.z, pr.h, 18); if (ic) { const w = ic.width * (0.6 + 0.4 * Math.abs(Math.cos(pr.t / 3))); ctx.drawImage(ic, Math.round(sx - w / 2), Math.round(sy - ic.height / 2), Math.round(w), ic.height); } else { px(sx - 9, sy - 2, 18, 4, '#c8a050'); px(sx - 4, sy - 5, 8, 3, '#e0c070'); } break; }
     case 'hhat': { shadow(sx, pr.z, pr.h, 14); const w = 16 * (0.5 + 0.5 * Math.abs(Math.cos(pr.t / 3))); px(sx - w / 2, sy - 2, w, 3, '#141414'); px(sx - w / 4, sy - 7, w / 2, 5, '#1e1e1e'); px(sx - w / 4, sy - 3, w / 2, 1, '#6a1a1a'); break; }
+    case 'tool': {   // 夫人百寶箱裡的東西，邊飛邊轉
+      const ic = ICON[pr.icon]; shadow(sx, pr.z, pr.h, 12); if (!ic) break;
+      ctx.save(); ctx.translate(Math.round(sx), Math.round(sy)); if (pr.vx < 0) ctx.scale(-1, 1); ctx.rotate(pr.t * (pr.spin == null ? 0.3 : pr.spin)); ctx.drawImage(ic, -ic.width / 2, -ic.height / 2); ctx.restore();
+      break;
+    }
     case 'stone': shadow(sx, pr.z, pr.h, 20); ctx.drawImage(ICON.stone, Math.round(sx - 9), Math.round(sy - 15), 18, 15); break;
     case 'sound': {
       const r = 8 + pr.t * 1.3, d = Math.sign(pr.vx);
@@ -186,6 +192,21 @@ function drawDrum() {
   ctx.restore();
 }
 
+// 花姐擂鼓的大鼓（架上、側面，鼓面朝花姐；GPT 原圖鼓面朝右）：有 GPT 圖用圖，沒有就程式畫
+function drawWarDrum() {
+  const d = G.wardrum, sx = d.x - G.camX, k = d.kick > 0 ? (d.kick & 2 ? 1 : -1) : 0, im = IMG.prop.wardrum;
+  shadow(sx, d.z, 0, 40);
+  if (im) {
+    ctx.save(); ctx.translate(Math.round(sx), Math.round(d.z + k)); if (d.face > 0) ctx.scale(-1, 1); ctx.drawImage(im, -im.width / 2, -im.height); ctx.restore();
+    return;
+  }
+  const x = Math.round(sx), y = d.z;
+  px(x - 14, y - 22, 3, 22, '#4a2a10'); px(x + 11, y - 22, 3, 22, '#4a2a10'); px(x - 14, y - 12, 28, 3, '#5a3416');   // 木架
+  px(x - 13, y - 58 + k, 26, 38, '#1a0604'); px(x - 12, y - 57 + k, 24, 36, '#a82818'); px(x - 12, y - 57 + k, 24, 4, '#c83a20');
+  for (let i = 0; i < 5; i++) { px(x - 10 + i * 5, y - 54 + k, 2, 2, '#f0c040'); px(x - 10 + i * 5, y - 25 + k, 2, 2, '#f0c040'); }
+  const hx = x + d.face * 13; px(hx - 2, y - 58 + k, 4, 38, '#d8b880'); px(hx - 1, y - 56 + k, 2, 34, '#f0dcb0');   // 鼓面
+}
+
 function drawMines() {   // 假麻子的地雷：圓盤＋閃紅燈
   for (const m of G.mines || []) {
     const sx = m.x - G.camX;
@@ -215,6 +236,11 @@ function drawFx() {
       const cx2 = e.x - G.camX, cy2 = e.z - e.h - 40, r = 14 - f.t * 0.6;
       ctx.strokeStyle = '#ff3030'; ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(cx2, cy2, r, 0, Math.PI * 2); ctx.stroke();
       px(cx2 - r - 3, cy2, r * 2 + 6, 1, '#ff3030'); px(cx2, cy2 - r - 3, 1, r * 2 + 6, '#ff3030');
+    } else if (f.kind === 'bigtext') {   // 夫人「屁！！」
+      if (f.t < 0) continue;
+      const s2 = f.t < 4 ? 4 : 3, sh = f.t < 20 ? rnd(-2, 2) : 0;
+      if (f.t > 40 && (G.t & 2)) continue;
+      text(f.str, f.x - G.camX + sh, f.y - Math.min(f.t, 10) + sh, { s: s2, c: '#ff4030', a: 'c', o: '#000', grad: ['#fff0a0', '#ff3020'] });
     } else if (f.kind === 'ring') {
       if (f.t < 0) continue;
       const r = f.t * 3; ctx.strokeStyle = `rgba(255,230,180,${1 - f.t / 30})`; ctx.lineWidth = 2;
@@ -245,6 +271,7 @@ function drawFx() {
 
 // ---------- HUD ----------
 const porSmall = {};
+onCanvasLost(() => { for (const k in porSmall) delete porSmall[k]; });
 function smallPor(k, s) {
   const key = k + s;
   if (porSmall[key]) return porSmall[key];
@@ -384,8 +411,9 @@ SCENES.select = {
     const I = Input.pressed;
     if (this.done) { if (++this.done > 100) { G.chIdx = PLAYABLE.indexOf(CHARS[this.cur]); G.score = 0; G.flags = {}; G.attract = false; go('chapter'); } return; }
     let c = this.cur;
-    if (I.left) c = (c + 7) % 8; if (I.right) c = (c + 1) % 8;
-    if (I.up || I.down) c = (c + 4) % 8;
+    const N = CHARS.length, rows = Math.ceil(N / 4);
+    if (I.left) c = (c + N - 1) % N; if (I.right) c = (c + 1) % N;
+    if (I.up || I.down) { const col = c % 4; let r = Math.floor(c / 4); do { r = (r + (I.down ? 1 : rows - 1)) % rows; } while (r * 4 + col >= N); c = r * 4 + col; }
     if (c !== this.cur) { this.cur = c; Audio2.sfx('cursor'); markMat(c); }
     if ((I.p || I.start) && G.st > 10) {
       const ch = CHARS[this.cur];
@@ -428,7 +456,7 @@ SCENES.select = {
         lines.forEach((l, i) => text(l, 10, 181 - (lines.length - 1 - i) * 14, { c: '#ffffff', o: '#000' }));
       }
     }
-    // 右：八格
+    // 右：選角格（四欄）
     CHARS.forEach((c, i) => {
       const x = 236 + (i % 4) * 36 + (i === this.cur && this.shake ? rnd(-2, 2) : 0), y = 40 + Math.floor(i / 4) * 44;
       const on = i === this.cur;
@@ -443,7 +471,7 @@ SCENES.select = {
   },
 };
 // 過場（開場、結局）：一頁一頁的背景＋台詞
-// 劇情分支：玩家自己的角色不會死（六子、老二、老湯）；flag:question＝鐵門打出問號
+// 劇情分支：玩家自己的角色不會死（六子、老二、老湯、夫人）；flag:question＝鐵門打出問號
 const playerId = () => PLAYABLE[G.chIdx] && PLAYABLE[G.chIdx].id;
 const liuziAlive = () => playerId() === 'liuzi';
 function condOk(c) {
@@ -454,7 +482,7 @@ function condOk(c) {
   return (k === 'alive') === (playerId() === v);
 }
 function mournText() {   // 第 181 場「老二，老六，師爺，夫人」：玩家自己扮演的人不在名單裡
-  return [['erge', '老二'], ['liuzi', '老六'], ['tang', '師爺']].filter(([id]) => playerId() !== id).map(([, n]) => n).concat(['夫人']).join('，');
+  return [['erge', '老二'], ['liuzi', '老六'], ['tang', '師爺'], ['wife', '夫人']].filter(([id]) => playerId() !== id).map(([, n]) => n).join('，');
 }
 function storyPages(pages) {
   return pages.filter(pg => condOk(pg.cond)).map(pg => Object.assign({}, pg, { lines: wrapLines(pg.lines.filter(l => condOk(l[3])).map(l => l[1].includes('%MOURN%') ? [l[0], l[1].replace('%MOURN%', mournText()), l[2]] : l)) })).filter(pg => pg.lines.length);
@@ -596,7 +624,9 @@ function moveLines(ch) {
   const s2 = ch.moves.s2;
   return [[ch.ranged ? '攻擊（遠）' : '連按攻擊', ch.ranged ? '開槍點射→雙手重射（貼身改槍托、踢）' : '四段連打'], ['跳＋攻擊', '跳躍攻擊'], ['→→＋攻擊', '衝刺攻擊'], ['走到敵人身上', '抓住（攻擊＝膝撞，←＋攻擊＝往後摔）'],
     ['招式一', ch.s1n], ['招式二', ch.counter ? '按住擺「被動」架勢：擋正面攻擊、自動反擊' : ch.s2n + (s2.cost ? '（打中扣自己一點血）' : '')], ['超必殺', ch.supn + '（怒氣滿）']]
-    .concat(ch.armor ? [['特性', '霸體：出招時被打不會中斷']] : []);
+    .concat(ch.armor ? [['特性', '霸體：出招時被打不會中斷']] : [])
+    .concat(ch.toolbox ? [['特性', '百寶箱每次掏出的東西不同：磚頭、刨子、鉗子……']] : [])
+    .concat(ch.id === 'huajie' ? [['特性', '他跑我就追：追到最近的敵人身邊揭面具，對方愣住']] : []);
 }
 function pauseDraw() {
   ctx.fillStyle = 'rgba(0,0,0,.65)'; ctx.fillRect(0, 0, W, H);
@@ -707,7 +737,9 @@ addEventListener('keydown', e => { if (e.code === 'KeyM') Audio2.toggleMute(); }
 function tick() { Input.update(); SCENES[G.scene].update(); G.t++; G.st++; }
 function render() { ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.imageSmoothingEnabled = false; SCENES[G.scene].draw(); }
 let last = performance.now(), acc = 0;
+let lostT = 0;
 function frame(now) {
+  if (++lostT >= 30) { lostT = 0; checkCanvases(); }
   acc += Math.min(100, now - last); last = now;
   while (acc >= 1000 / 60) { tick(); acc -= 1000 / 60; }
   render();

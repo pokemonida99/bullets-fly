@@ -109,6 +109,10 @@ const Audio2 = (() => {
     ch_sange() { const t = ac.currentTime; for (let i = 0; i < 3; i++) noise(0.06, 0.35, 'highpass', 7000, 4000, sfxBus, t + i * 0.07); },
     ch_liuzi() { tone('sine', 70, 30, 0.4, 1); noise(0.3, 0.5, 'lowpass', 700, 80); },
     ch_tang() { SFX.coins(); },
+    ch_wife() { SFX.whiffBig(); tone('sine', 140, 60, 0.2, 0.6); },
+    ch_huajie() { SFX.drum(); setTimeout(() => SFX.drum(), 140); },
+    drum() { tone('sine', 110, 46, 0.4, 1); tone('triangle', 70, 40, 0.3, 0.5); noise(0.12, 0.5, 'lowpass', 1200, 150); },
+    drumBig() { tone('sine', 90, 34, 0.9, 1); tone('triangle', 60, 30, 0.7, 0.6); noise(0.5, 0.8, 'lowpass', 1500, 80); },
   };
 
   // ---------- 配樂：簡易步進音序器 ----------

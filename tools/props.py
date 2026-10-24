@@ -6,8 +6,9 @@ from PIL import Image
 SHEETS = {'props': ['drum', 'jar', 'crate', 'goose', 'jelly', 'coin', 'gold', 'pouch'],
           'props2': ['axe', 'boulder', 'log', 'clock', 'bush', 'stones', 'flag', 'hotpot'],
           'props3': ['hat', 'whistle', 'p3c', 'p3d', 'p3e', 'p3f', 'p3g', 'p3h']}
+SINGLE = {'prop_wardrum': 'wardrum'}   # 單張道具圖（整張就是一個道具）：花姐擂鼓的大鼓
 SIZE = {'drum': 46, 'jar': 20, 'crate': 18, 'goose': 13, 'jelly': 12, 'coin': 10, 'gold': 8, 'pouch': 13,
-        'hat': 14, 'whistle': 8, 'p3c': 12, 'p3d': 12, 'p3e': 12, 'p3f': 12, 'p3g': 12, 'p3h': 12, 'axe': 14, 'boulder': 22, 'log': 14, 'clock': 12, 'bush': 16, 'stones': 8, 'flag': 22, 'hotpot': 16}   # 目標高度（遊戲像素）
+        'wardrum': 60, 'hat': 14, 'whistle': 8, 'p3c': 12, 'p3d': 12, 'p3e': 12, 'p3f': 12, 'p3g': 12, 'p3h': 12, 'axe': 14, 'boulder': 22, 'log': 14, 'clock': 12, 'bush': 16, 'stones': 8, 'flag': 22, 'hotpot': 16}   # 目標高度（遊戲像素）
 
 
 def is_mag(r, g, b):
@@ -16,18 +17,26 @@ def is_mag(r, g, b):
 
 def main():
   out = {}; prev = []
-  for sheet, NAMES in SHEETS.items():
-    import os
-    if not os.path.exists(f'work/art/{sheet}.png'): continue
-    im = Image.open(f'work/art/{sheet}.png').convert('RGBA')
+  import os
+  def load(name):
+    im = Image.open(f'work/art/{name}.png').convert('RGBA')
     px = im.load()
     for y in range(im.height):
         for x in range(im.width):
             r, g, b, a = px[x, y]
             if is_mag(r, g, b): px[x, y] = (0, 0, 0, 0)
+    return im
+  cells = []
+  for sheet, NAMES in SHEETS.items():
+    if not os.path.exists(f'work/art/{sheet}.png'): continue
+    im = load(sheet)
     for i, n in enumerate(NAMES):
         c, r = i % 4, i // 4
-        cell = im.crop((c * im.width // 4, r * im.height // 2, (c + 1) * im.width // 4, (r + 1) * im.height // 2))
+        cells.append((n, im.crop((c * im.width // 4, r * im.height // 2, (c + 1) * im.width // 4, (r + 1) * im.height // 2))))
+  for f, n in SINGLE.items():
+    if os.path.exists(f'work/art/{f}.png'): cells.append((n, load(f)))
+  if True:
+    for n, cell in cells:
         bb = cell.getbbox(); cell = cell.crop(bb)
         if n == 'drum':   # 冤鼓要滾：只留圓形鼓身，去掉木架
             d = cell.width; cell = cell.crop((0, 0, d, d)); m = Image.new('L', (d, d), 0)
