@@ -9,7 +9,10 @@ const G = {
 let P = null, foes = [], projs = [], props = [], items = [], parts = [], pops = [], fx = [];
 let STAGE = STAGE1, stageLen = 5 * W;
 
-function go(scene) { if (typeof markChapter === 'function') markChapter(scene); G.scene = scene; G.st = 0; SCENES[scene].enter && SCENES[scene].enter(); }
+function go(scene) { if (typeof markChapter === 'function') markChapter(scene); G.scene = scene; G.st = 0; startLabel(); SCENES[scene].enter && SCENES[scene].enter(); }
+// 觸控右上角的鍵：標題、選角、劇情是 START；進了關卡就是 MENU（打開暫停選單）
+const MENU_SCENES = ['play', 'ride', 'bonus'];
+function startLabel() { const el = document.querySelector('.b-start'); if (el) el.textContent = MENU_SCENES.includes(G.scene) ? 'MENU' : 'START'; }
 const sfx = n => Audio2.sfx(n);
 
 // ---------- 粒子 ----------

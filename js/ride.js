@@ -262,7 +262,7 @@ SCENES.ridein = {
 SCENES.ride = {
   update() {
     if (G.paused) return pauseUpdate();
-    if (Input.pressed.pause && !G.cutin && R.phase === 'fight') { G.paused = true; G.pauseSel = 0; G.showMoves = false; Audio2.sfx('pause'); return; }
+    if ((Input.pressed.pause || Input.pressed.start) && !G.cutin && R.phase === 'fight') { G.paused = true; G.pauseSel = 0; G.showMoves = false; Audio2.sfx('pause'); return; }
     updateRide();
   },
   draw() { drawRide(); if (G.paused) pauseDraw(); },

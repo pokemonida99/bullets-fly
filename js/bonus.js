@@ -113,4 +113,4 @@ SCENES.bonusin = {
     text(isTouch ? '攻：丟　搖桿↑丟高 ↓丟低　跳：跳過木箱' : 'J 丟　↑ 丟高　↓ 丟低　K 跳過木箱', W / 2, 140, { c: '#ffffff', a: 'c', o: '#000' });
   },
 };
-SCENES.bonus = { update() { if (G.paused) return pauseUpdate(); if (Input.pressed.pause && !B.done) { G.paused = true; G.pauseSel = 0; Audio2.sfx('pause'); return; } updateBonus(); }, draw() { drawBonus(); if (G.paused) pauseDraw(); } };
+SCENES.bonus = { update() { if (G.paused) return pauseUpdate(); if ((Input.pressed.pause || Input.pressed.start) && !B.done) { G.paused = true; G.pauseSel = 0; Audio2.sfx('pause'); return; } updateBonus(); }, draw() { drawBonus(); if (G.paused) pauseDraw(); } };

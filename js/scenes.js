@@ -451,8 +451,13 @@ SCENES.select = {
       drawSpr(ch.id, fr, 206, 200, 1);
       if (this.done) {   // 選角台詞（太長就換行）
         const q = '「' + ch.pick + '」', n = 15, lines = [];
-        for (let i = 0; i < q.length; i += n) lines.push(q.slice(i, i + n));
-        px(6, 178 - (lines.length - 1) * 14, 186, 14 * lines.length + 6, 'rgba(0,0,0,.7)');
+        for (let i = 0; i < q.length;) {   // 每行 15 字（行尾標點可多 1 字），盡量斷在標點後面，標點不放行首
+          let j = Math.min(q.length, i + n);
+          if (j < q.length) { let k = Math.max(...'，；。！？…'.split('').map(c => q.lastIndexOf(c, j - 1))); if (q[k] === '…' && q[k + 1] === '…') k++; if (k >= i + n / 2) j = k + 1; }
+          while (j < q.length && j - i < n + 1 && '，；。！？…」'.includes(q[j])) j++;
+          lines.push(q.slice(i, j)); i = j;
+        }
+        px(6, 178 - (lines.length - 1) * 14, 198, 14 * lines.length + 6, 'rgba(0,0,0,.7)');
         lines.forEach((l, i) => text(l, 10, 181 - (lines.length - 1 - i) * 14, { c: '#ffffff', o: '#000' }));
       }
     }
@@ -578,7 +583,7 @@ SCENES.stagein = {
 SCENES.play = {
   update() {
     if (G.paused) return pauseUpdate();
-    if (Input.pressed.pause && !G.talk && !G.cutin && !G.clear) { G.paused = true; G.pauseSel = 0; G.showMoves = false; Audio2.sfx('pause'); return; }
+    if ((Input.pressed.pause || Input.pressed.start) && !G.talk && !G.cutin && !G.clear) { G.paused = true; G.pauseSel = 0; G.showMoves = false; Audio2.sfx('pause'); return; }
     updatePlay();
   },
   draw() {
@@ -604,21 +609,52 @@ SCENES.play = {
     if (G.paused) pauseDraw();
   },
 };
-const PAUSE_ITEMS = ['繼續', '出招表', '重新開始', '回到標題', '聲音'];
+const PAUSE_ITEMS = ['繼續', '出招表', '換角色', '重新開始', '回到主畫面', '聲音'];
 function pauseUpdate() {
-  const I = Input.pressed;
+  const I = Input.pressed, N = PAUSE_ITEMS.length;
   if (G.showMoves) { if (I.p || I.k || I.pause || I.start) G.showMoves = false; return; }
-  if (I.up) { G.pauseSel = (G.pauseSel + 4) % 5; Audio2.sfx('cursor'); }
-  if (I.down) { G.pauseSel = (G.pauseSel + 1) % 5; Audio2.sfx('cursor'); }
+  if (G.swap) return swapUpdate();
+  if (I.up) { G.pauseSel = (G.pauseSel + N - 1) % N; Audio2.sfx('cursor'); }
+  if (I.down) { G.pauseSel = (G.pauseSel + 1) % N; Audio2.sfx('cursor'); }
   if (I.pause || I.k) { G.paused = false; return; }
   if (I.p || I.start) {
     const it = PAUSE_ITEMS[G.pauseSel];
     if (it === '繼續') G.paused = false;
     else if (it === '出招表') G.showMoves = true;
+    else if (it === '換角色') { G.swap = { cur: CHARS.indexOf(P.ch) }; Audio2.sfx('decide'); }
     else if (it === '重新開始') { G.paused = false; G.score = 0; go(G.scene === 'ride' ? 'ridein' : G.scene === 'bonus' ? 'bonusin' : 'stagein'); }
-    else if (it === '回到標題') { G.paused = false; go('title'); }
+    else if (it === '回到主畫面') { G.paused = false; go('title'); }
     else if (it === '聲音') Audio2.toggleMute();
   }
+}
+// 暫停中換角色：原地換人，血量（照比例）、命數、怒氣、分數、位置都保留；要從頭來就回主畫面
+function swapUpdate() {
+  const I = Input.pressed, N = CHARS.length, rows = Math.ceil(N / 4), sw = G.swap;
+  let c = sw.cur;
+  if (I.left) c = (c + N - 1) % N; if (I.right) c = (c + 1) % N;
+  if (I.up || I.down) { const col = c % 4; let r = Math.floor(c / 4); do { r = (r + (I.down ? 1 : rows - 1)) % rows; } while (r * 4 + col >= N); c = r * 4 + col; }
+  if (c !== sw.cur) { sw.cur = c; Audio2.sfx('cursor'); }
+  if (I.k || I.pause) { G.swap = null; return; }
+  if (I.p || I.start) {
+    const ch = CHARS[sw.cur];
+    if (ch.locked) { Audio2.sfx('locked'); return; }
+    G.swap = null; G.paused = false;
+    if (ch !== P.ch) swapPlayer(ch);
+  }
+}
+function swapPlayer(ch) {
+  const old = P, ratio = old.hp / old.maxhp;
+  if (old.grab) { old.grab.st = 'idle'; old.grab = null; }
+  projs = projs.filter(q => q.kind !== 'hat');   // 老四的斗笠認主人
+  P = Object.assign(newPlayer(ch), old, {
+    ch, cid: ch.id, maxhp: ch.hp, hp: Math.max(1, Math.round(ratio * ch.hp)),
+    mv: null, mvName: null, sub: null, grab: null, superKind: null, aura: 0, combo: 0, comboT: 0, buf: false, inv: 60, flash: 0,
+  });
+  if (G.scene !== 'ride') { P.st = 'idle'; P.h = 0; P.vh = 0; }
+  G.chIdx = PLAYABLE.indexOf(ch);
+  Audio2.sfx('decide'); Audio2.sfx('ch_' + ch.id);
+  if (G.scene !== 'ride') { dust(P.x, P.z, 10); pop(P.x, P.z - 90, ch.name + '，換我來！', '#ffd040'); }
+  if (typeof markMat === 'function') markMat(CHARS.indexOf(ch));
 }
 function moveLines(ch) {
   const s2 = ch.moves.s2;
@@ -637,11 +673,27 @@ function pauseDraw() {
     text(isTouch ? '招一／招二／超 按鍵直接放' : 'L 招式一　I 招式二　空白鍵 超必殺　K 跳', W / 2, H - 28, { c: '#c0c0c8', a: 'c', o: '#000' });
     return;
   }
+  if (G.swap) return swapDraw();
   text('暫停', W / 2, 40, { s: 2, c: '#fff', a: 'c', o: '#300' });
   PAUSE_ITEMS.forEach((it, i) => {
     const label = it === '聲音' ? '聲音：' + (Audio2.muted ? '關' : '開') : it;
     text((i === G.pauseSel ? '▶ ' : '　') + label, W / 2 - 40, 80 + i * 18, { c: i === G.pauseSel ? '#ffd040' : '#ffffff', o: '#000' });
   });
+}
+function swapDraw() {
+  const cur = G.swap.cur, ch = CHARS[cur], x0 = W / 2 - 72;
+  text('換角色', W / 2, 8, { s: 2, c: '#fff', a: 'c', o: '#300', grad: ['#ffffff', '#ffb020'] });
+  CHARS.forEach((c, i) => {
+    const x = x0 + (i % 4) * 36, y = 42 + Math.floor(i / 4) * 44, on = i === cur;
+    px(x - 2, y - 2, 34, 34, on ? ((G.t & 8) ? '#ffffff' : '#ffd040') : c === P.ch ? '#a06030' : '#5a3a20');
+    px(x, y, 30, 30, '#2a0c06');
+    const sp = !c.locked && smallPor(c.id, 30);
+    if (sp) ctx.drawImage(sp, x, y); else text('?', x + 15, y + 8, { c: '#604030', a: 'c' });
+    text(c.name, x + 15, y + 32, { c: on ? '#ffd040' : '#a08060', a: 'c', o: '#000' });
+  });
+  const hp = Math.max(1, Math.round(P.hp / P.maxhp * ch.hp));
+  text(ch.title + '　換上來的血量 ' + hp + '／' + ch.hp, W / 2, 178, { c: '#ffffff', a: 'c', o: '#000' });
+  text(isTouch ? '攻：決定　跳：返回' : '攻擊鍵決定　跳躍鍵返回', W / 2, 196, { c: '#a0a0a8', a: 'c', o: '#000' });
 }
 SCENES.continue = {
   enter() { this.n = 9; this.t = 0; Audio2.play('gameover'); },
